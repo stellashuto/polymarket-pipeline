@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+
+# logs
+pipeline.log
+*.log
+
+# secrets
+.env
+.env.*
+!.env.example
+
+# pipeline outputs (生成物はサイト側で管理するのでpipelineには含めない)
+output/
