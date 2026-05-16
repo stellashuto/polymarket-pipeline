@@ -17,6 +17,7 @@ import anthropic
 
 from config import ANTHROPIC_API_KEY, ARTICLES_DIR
 from polymarket_scraper import Market
+from thumbnail_generator import generate_thumbnail
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +87,7 @@ def _build_market_context(market: Market) -> str:
     return "\n".join(lines)
 
 
-def _build_frontmatter(market: Market) -> str:
+def _build_frontmatter(market: Market, thumbnail: str = "") -> str:
     now  = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     return f"""---
 title: "{market.question}"
@@ -94,6 +95,7 @@ date: "{now}"
 category: "{market.category}"
 volume_usd: {market.volume:.0f}
 condition_id: "{market.condition_id}"
+thumbnail: "{thumbnail}"
 type: "market"
 ---
 
@@ -178,8 +180,17 @@ def generate_article(market: Market, related_news: list | None = None) -> Path:
             cache_create,
         )
 
-    # フロントマター + 本文（チャート埋め込みは廃止）
-    content = _build_frontmatter(market) + full_text
+    # サムネ生成（質問文 + カテゴリから）
+    thumb_path = generate_thumbnail(
+        slug=market.condition_id,
+        title=market.question,
+        summary=f"Polymarketの予測市場。出来高 ${market.volume:,.0f} USD。{market.category}カテゴリ。",
+        category=market.category,
+    )
+    thumbnail_name = thumb_path.name if thumb_path else ""
+
+    # フロントマター + 本文
+    content = _build_frontmatter(market, thumbnail_name) + full_text
 
     # 関連ニュースを参考文献として末尾に列挙
     if related_news:

@@ -5,19 +5,25 @@ GAMMA_BASE = "https://gamma-api.polymarket.com"
 CLOB_BASE  = "https://clob.polymarket.com"
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+REPLICATE_API_TOKEN = os.environ.get("REPLICATE_API_TOKEN", "")
 
-OUTPUT_DIR   = Path(__file__).parent / "output"
-CHARTS_DIR   = OUTPUT_DIR / "charts"
-ARTICLES_DIR = OUTPUT_DIR / "articles"
+OUTPUT_DIR     = Path(__file__).parent / "output"
+CHARTS_DIR     = OUTPUT_DIR / "charts"
+ARTICLES_DIR   = OUTPUT_DIR / "articles"
+THUMBNAILS_DIR = OUTPUT_DIR / "thumbnails"
 
 OUTPUT_DIR.mkdir(exist_ok=True)
 CHARTS_DIR.mkdir(exist_ok=True)
 ARTICLES_DIR.mkdir(exist_ok=True)
+THUMBNAILS_DIR.mkdir(exist_ok=True)
 
-# Next.js サイトの content ディレクトリ（自動同期先）
+# Next.js サイトの content / public ディレクトリ（自動同期先）
 # None にすると同期をスキップ
 SITE_CONTENT_DIR: Path | None = (
     Path(__file__).parent.parent / "polymarket-site" / "content" / "articles"
+)
+SITE_THUMBNAILS_DIR: Path | None = (
+    Path(__file__).parent.parent / "polymarket-site" / "public" / "thumbnails"
 )
 
 # どのカテゴリキーワードをアクティブに取得するか

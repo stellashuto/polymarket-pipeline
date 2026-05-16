@@ -34,13 +34,15 @@ function Log {
 
 Log "=== publish.ps1 START (news=$NewsLimit, market=$MarketLimit, dryRun=$DryRun, skipPush=$SkipPush) ==="
 
-# Load ANTHROPIC_API_KEY from .env if not already set
-if (-not $env:ANTHROPIC_API_KEY) {
-  $envFile = Join-Path $PipelineDir ".env"
-  if (Test-Path $envFile) {
-    Get-Content $envFile | ForEach-Object {
-      if ($_ -match '^\s*ANTHROPIC_API_KEY\s*=\s*(.+)\s*$') {
-        $env:ANTHROPIC_API_KEY = $matches[1].Trim().Trim('"').Trim("'")
+# Load secrets from .env if not already set
+$envFile = Join-Path $PipelineDir ".env"
+if (Test-Path $envFile) {
+  Get-Content $envFile | ForEach-Object {
+    if ($_ -match '^\s*([A-Z_]+)\s*=\s*(.+)\s*$') {
+      $name  = $matches[1]
+      $value = $matches[2].Trim().Trim('"').Trim("'")
+      if (-not (Get-Item -Path "Env:$name" -ErrorAction SilentlyContinue)) {
+        Set-Item -Path "Env:$name" -Value $value
       }
     }
   }
@@ -49,6 +51,9 @@ if (-not $env:ANTHROPIC_API_KEY) {
 if (-not $env:ANTHROPIC_API_KEY) {
   Log "ANTHROPIC_API_KEY is not set. Aborting." "ERROR"
   exit 1
+}
+if (-not $env:REPLICATE_API_TOKEN) {
+  Log "REPLICATE_API_TOKEN is not set. Thumbnails will be skipped." "WARN"
 }
 
 # --- Step 1: Generate articles ---
@@ -75,9 +80,9 @@ if ($DryRun) {
 Log "Step 2: checking site for changes..."
 Push-Location $SiteDir
 try {
-  $status = git status --porcelain content/articles/
+  $status = git status --porcelain content/articles/ public/thumbnails/
   if (-not $status) {
-    Log "No changes in content/articles. Nothing to publish."
+    Log "No changes in content/articles or public/thumbnails. Nothing to publish."
     exit 0
   }
   Log "Detected changes:"
@@ -90,7 +95,7 @@ try {
 
   # --- Step 3: commit and push ---
   Log "Step 3: committing and pushing..."
-  git add content/articles/
+  git add content/articles/ public/thumbnails/
   $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm"
   $count = ($status | Measure-Object).Count
   git commit -m "Auto-publish: $count article change(s) at $timestamp"

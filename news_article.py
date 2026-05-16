@@ -20,6 +20,7 @@ import httpx
 
 from config import ANTHROPIC_API_KEY, ARTICLES_DIR
 from news_scraper import NewsItem
+from thumbnail_generator import generate_thumbnail
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +111,8 @@ def _build_user_prompt(item: NewsItem) -> str:
 本文中で **元記事の文章を30字以上連続して転載しない**こと。要点は自分の言葉で再構成してください。"""
 
 
-def _build_frontmatter(item: NewsItem, title: str, category: str) -> str:
+def _build_frontmatter(item: NewsItem, title: str, category: str,
+                       thumbnail: str = "") -> str:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     published_iso = item.published.strftime("%Y-%m-%dT%H:%M:%SZ") if item.published else now
     return f"""---
@@ -121,6 +123,7 @@ category: "{category}"
 source: "{_yaml_safe(item.source)}"
 source_url: "{item.link}"
 news_id: "{item.id}"
+thumbnail: "{thumbnail}"
 type: "news"
 ---
 
@@ -167,14 +170,18 @@ def generate_news_article(item: NewsItem) -> Optional[Path]:
     title = _extract_title(full_text, item.title)
     body = re.sub(r"^\s*#\s.*\n", "", full_text, count=1)
 
+    slug = f"news_{item.id}"
+    thumb_path = generate_thumbnail(slug, title, item.summary, category)
+    thumbnail_name = thumb_path.name if thumb_path else ""
+
     attribution = (
         f"\n\n---\n\n"
         f"※本記事は{item.source}（[原文]({item.link})）の情報を元に、"
         f"独自に再構成・解説したリライト記事です。\n"
     )
-    content = _build_frontmatter(item, title, category) + body + attribution
+    content = _build_frontmatter(item, title, category, thumbnail_name) + body + attribution
 
-    out_path = ARTICLES_DIR / f"news_{item.id}.md"
+    out_path = ARTICLES_DIR / f"{slug}.md"
     out_path.write_text(content, encoding="utf-8")
     logger.info("News article saved → %s", out_path)
     return out_path
