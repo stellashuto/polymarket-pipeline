@@ -38,12 +38,18 @@ MARKET_LIMIT = 30
 # 出来高フィルター：これ未満のマーケットはスキップ（USD）
 MIN_VOLUME = 50_000
 
-# ニュースRSSフィード（仮想通貨・金融）
+# ニュースRSSフィード（仮想通貨・金融・政治・経済を網羅）
 NEWS_FEEDS: list[dict] = [
-    {"name": "CoinPost",          "url": "https://coinpost.jp/?feed=rss2",        "category_hint": "crypto"},
-    {"name": "CoinDesk JAPAN",    "url": "https://www.coindeskjapan.com/feed/",   "category_hint": "crypto"},
-    {"name": "あたらしい経済",       "url": "https://www.neweconomy.jp/feed",         "category_hint": "crypto"},
-    {"name": "Crypto Times",      "url": "https://crypto-times.jp/feed/",         "category_hint": "crypto"},
+    # --- 仮想通貨 ---
+    {"name": "CoinPost",          "url": "https://coinpost.jp/?feed=rss2",         "category_hint": "crypto"},
+    {"name": "CoinDesk JAPAN",    "url": "https://www.coindeskjapan.com/feed/",    "category_hint": "crypto"},
+    {"name": "あたらしい経済",       "url": "https://www.neweconomy.jp/feed",          "category_hint": "crypto"},
+    {"name": "Crypto Times",      "url": "https://crypto-times.jp/feed/",          "category_hint": "crypto"},
+    # --- 政治・国際 ---
+    {"name": "NHK 政治",          "url": "https://www.nhk.or.jp/rss/news/cat4.xml", "category_hint": "politics"},
+    {"name": "NHK 国際",          "url": "https://www.nhk.or.jp/rss/news/cat6.xml", "category_hint": "politics"},
+    # --- 経済 ---
+    {"name": "NHK ビジネス",      "url": "https://www.nhk.or.jp/rss/news/cat5.xml", "category_hint": "economics"},
 ]
 
 # 1フィードあたり取得件数の上限

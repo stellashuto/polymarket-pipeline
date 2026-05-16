@@ -21,8 +21,9 @@ from polymarket_scraper import PolymarketScraper
 from news_scraper import NewsScraper
 from news_matcher import find_related_news
 from article_draft import generate_article
-from news_article import generate_news_article
+from news_article import generate_news_article, _infer_news_category
 from site_sync import sync_articles
+from diverse_select import diverse_pick
 
 _stdout_handler = logging.StreamHandler(sys.stdout)
 _stdout_handler.stream = open(sys.stdout.fileno(), mode="w", encoding="utf-8", buffering=1)
@@ -38,23 +39,34 @@ logger = logging.getLogger("main")
 
 
 def run_news_flow(limit: int, dry_run: bool) -> int:
-    """Flow A: RSS → Claude リライト記事。重複検出でスキップした場合は次の候補を試す。"""
+    """Flow A: RSS → Claude リライト記事。
+    カテゴリ多様性を考慮し、政治/経済/暗号資産が偏らないようにラウンドロビン選択する。"""
     logger.info("=== Flow A: News rewrite ===")
     news = NewsScraper().fetch(fresh_only=True)
     if not news:
         logger.warning("No news items fetched.")
         return 0
 
-    logger.info("Trying up to %d news items (skipping duplicates).", limit)
+    # 候補を多めに用意（重複でスキップされる分のバッファとして3倍）し、
+    # 政治→経済→暗号資産の順で巡回する
+    candidates = diverse_pick(
+        news,
+        limit=limit * 3,
+        category_of=lambda n: _infer_news_category(n),
+        rank_of=lambda n: n.published.timestamp() if n.published else 0,
+        preferred_order=["politics", "economics", "crypto", "entertainment", "other"],
+    )
+    logger.info("Trying up to %d news items (from %d category-balanced candidates).",
+                limit, len(candidates))
 
     if dry_run:
-        for n in news[:limit]:
-            print(f"  [DRY-RUN] [{n.source}] {n.title[:70]}")
+        for n in candidates[:limit]:
+            print(f"  [DRY-RUN] [{_infer_news_category(n):10s}] [{n.source}] {n.title[:60]}")
         return 0
 
     saved = 0
     attempted = 0
-    for item in news:
+    for item in candidates:
         if saved >= limit:
             break
         attempted += 1
@@ -77,13 +89,20 @@ def run_market_flow(limit: int, dry_run: bool, use_news_context: bool = True) ->
         logger.warning("No markets found.")
         return 0
 
-    # 出来高順に全てキューに入れて、上から順に試す（スキップ時は次の候補へ）
-    markets = sorted(markets, key=lambda m: m.volume, reverse=True)
-    logger.info("Trying up to %d markets from %d candidates.", limit, len(markets))
+    # カテゴリ多様性を考慮（スポーツ独占を防ぐ）
+    markets = diverse_pick(
+        markets,
+        limit=limit * 4,
+        category_of=lambda m: m.category,
+        rank_of=lambda m: m.volume,
+        preferred_order=["politics", "economics", "crypto", "sports", "entertainment", "other"],
+    )
+    logger.info("Trying up to %d markets from %d category-balanced candidates.",
+                limit, len(markets))
 
     if dry_run:
         for m in markets[:limit]:
-            print(f"  [DRY-RUN] {m.question[:70]}  vol=${m.volume:,.0f}")
+            print(f"  [DRY-RUN] [{m.category:10s}] {m.question[:60]}  vol=${m.volume:,.0f}")
         return 0
 
     news = []
