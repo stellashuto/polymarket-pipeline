@@ -66,7 +66,13 @@ class Market:
     category: str
     end_date: str
     volume: float
+    slug: str = ""
     tokens: list[TokenHistory] = field(default_factory=list)
+
+    @property
+    def polymarket_url(self) -> str:
+        """Polymarket公式ページのURL。"""
+        return f"https://polymarket.com/event/{self.slug}" if self.slug else ""
 
     def yes_token(self) -> Optional[TokenHistory]:
         for t in self.tokens:
@@ -172,6 +178,7 @@ class PolymarketScraper:
                 category=category,
                 end_date=raw.get("endDate") or raw.get("end_date_iso", ""),
                 volume=volume,
+                slug=raw.get("slug", ""),
                 tokens=tokens,
             )
             results.append(market)

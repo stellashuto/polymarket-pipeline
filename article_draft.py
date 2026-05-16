@@ -28,23 +28,33 @@ logger = logging.getLogger(__name__)
 # 記事生成に使用するモデル（コスト・品質バランスでSonnet推奨）
 MODEL = "claude-sonnet-4-6"
 
-SYSTEM_PROMPT = """あなたはPolymarket（予測市場）専門の日本語金融ライターです。
-エンジニア兼データアナリストとしての実取引経験（6,000 USD規模）をもとに、
-読者が実際に活用できる市場分析記事を書きます。
+SYSTEM_PROMPT = """あなたは Polymarket（予測市場）に詳しい日本語の金融ライターです。
+読者は仮想通貨を実際にトレードしている投資家・トレーダー層で、ありがちな
+「AIが書いたっぽい」テンプレ記事はすぐ見抜きます。**人間のライターとして書く**。
 
-## 執筆スタイル
-- 見出しはH2（##）/ H3（###）を使用
-- 記事の冒頭に **「## 要点（TL;DR）」** セクションを必ず置き、3〜4個の箇条書きで結論を先出しする（AI検索エンジンが引用しやすい形）
-- 数値やオッズは具体的に記載（例：「YESオッズが62% → 71%に上昇」）
-- 一次情報を強調：「Polymarketの出来高データによると」などの表現を使う
-- SEO対策として「Polymarket 使い方」「予測市場 オッズ」などのキーワードを自然に含める
-- 末尾の「よくある質問」は読者向けに人間が読めるQ&A形式で書く（JSON や code block で囲まない）
+## トーンと語り口
+- **短文と長文を交ぜる**。「YESオッズは22.9%。市場は冷ややかだ。」のような短い断定を時々混ぜる
+- **断定する**。「〜と考えられます」「〜可能性があります」を多用しない。データから言えることは言い切る
+- **書き手の視点を出す**。「筆者の見立てでは」「個人的にはここを買い場と見ている」など意見を入れる
+- **業界スラングを自然に使う**。「板が薄い」「玉が動いた」「ローリングする」など
+- **冗長な接続詞は削る**。「したがって」「このように」「すなわち」の連発は避ける
+- 同じ言い回し（例「Polymarketのデータによると」）を1記事内で2回以上使わない
 
-## 禁止事項
-- 「〜かもしれません」など断定を避ける曖昧表現の多用
-- 情報源のない断言
+## 記事構造
+- 冒頭は必ず `## 要点（TL;DR）` を3〜4個の箇条書きで（AI検索エンジン引用用）
+- それ以外のセクション見出しは記事内容に合わせて自由に決める（テンプレ感回避）
+- 末尾FAQは `### Q1. 質問文` → 直後の段落で回答 形式（JSON・コードブロック禁止）
+
+## データの扱い
+- 数値・オッズは具体的に（「YES 62% → 71%」のように矢印で推移を示す）
+- 出来高は文脈付きで（「出来高2,700万ドル＝中規模イベント級」のように相場感を出す）
+
+## 禁止
 - 1,500字未満の短すぎる記事
-- 本文中に JSON や `<script>` タグ、コードブロック内のメタデータを書くこと（構造化データはサイト側で別途生成する）"""
+- 本文中に JSON や `<script>` タグ、構造化データを書く（サイト側で別途生成）
+- 「皆さんは〜思いませんか？」「いかがでしょうか？」など読者への呼びかけ濫用
+- 「ぜひ参考にしてみてください」「投資は自己責任で」など締めの定型句
+- AIっぽい三段論法（「まず〜、次に〜、最後に〜」の連発）"""
 
 _client: anthropic.Anthropic | None = None
 
@@ -97,6 +107,23 @@ def _build_frontmatter(market: Market, title: str, thumbnail: str = "") -> str:
     now  = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     safe_title = title.replace('"', "'")
     safe_q_en  = market.question.replace('"', "'")
+
+    # チャート描画用に各トークンの履歴をコンパクトなJSON配列で書き出す
+    # [[unix_ts, price], ...] 形式（小数4桁・整数Unix秒）
+    history_lines = []
+    for tok in market.tokens:
+        if not tok.history:
+            continue
+        compact = "[" + ",".join(
+            f"[{int(p['t'])},{float(p['p']):.4f}]" for p in tok.history
+        ) + "]"
+        safe_outcome = (tok.outcome or "").replace('"', "'")
+        history_lines.append(f'  - outcome: "{safe_outcome}"')
+        history_lines.append(f'    history: \'{compact}\'')
+
+    history_block = "\n".join(history_lines) if history_lines else ""
+    history_yaml = f"odds_history:\n{history_block}\n" if history_block else ""
+
     return f"""---
 title: "{safe_title}"
 question_en: "{safe_q_en}"
@@ -104,9 +131,11 @@ date: "{now}"
 category: "{market.category}"
 volume_usd: {market.volume:.0f}
 condition_id: "{market.condition_id}"
+polymarket_slug: "{market.slug}"
+polymarket_url: "{market.polymarket_url}"
 thumbnail: "{thumbnail}"
 type: "market"
----
+{history_yaml}---
 
 """
 
