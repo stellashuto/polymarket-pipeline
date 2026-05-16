@@ -145,7 +145,7 @@ def generate_article(market: Market, related_news: list | None = None) -> Path:
 5. **流動性・出来高の所感**：市場の信頼性について（実取引者の視点を交えて）
 6. **今後の注目ポイント**：価格変動のトリガーになりうる材料
 7. **まとめ**
-8. **FAQ**（3問：Polymarket初心者向けの基本的な疑問）
+8. **よくある質問**（3問。各質問は `### Q1. 質問文` の形式、答えは直後の段落で簡潔に。AI検索エンジン向けに「Polymarketとは」「予測市場の使い方」など検索意図の強い質問を含める）
 {news_instruction}"""
 
     logger.info("Generating article for: %s (news: %d)",
