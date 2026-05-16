@@ -174,12 +174,8 @@ def generate_news_article(item: NewsItem) -> Optional[Path]:
     thumb_path = generate_thumbnail(slug, title, item.summary, category)
     thumbnail_name = thumb_path.name if thumb_path else ""
 
-    attribution = (
-        f"\n\n---\n\n"
-        f"※本記事は{item.source}（[原文]({item.link})）の情報を元に、"
-        f"独自に再構成・解説したリライト記事です。\n"
-    )
-    content = _build_frontmatter(item, title, category, thumbnail_name) + body + attribution
+    # 引用元はfrontmatter (source / source_url) と記事ページのヘッダで明示される
+    content = _build_frontmatter(item, title, category, thumbnail_name) + body
 
     out_path = ARTICLES_DIR / f"{slug}.md"
     out_path.write_text(content, encoding="utf-8")
