@@ -10,6 +10,7 @@ Article draft generator.
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -92,10 +93,13 @@ def _build_market_context(market: Market) -> str:
     return "\n".join(lines)
 
 
-def _build_frontmatter(market: Market, thumbnail: str = "") -> str:
+def _build_frontmatter(market: Market, title: str, thumbnail: str = "") -> str:
     now  = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    safe_title = title.replace('"', "'")
+    safe_q_en  = market.question.replace('"', "'")
     return f"""---
-title: "{market.question}"
+title: "{safe_title}"
+question_en: "{safe_q_en}"
 date: "{now}"
 category: "{market.category}"
 volume_usd: {market.volume:.0f}
@@ -165,10 +169,21 @@ def generate_article(market: Market, related_news: list | None = None,
 上記のPolymarketデータ{('と関連ニュース' if related_news else '')}をもとに、
 以下の構成で日本語の市況解説記事を執筆してください。
 
+0. **# 日本語タイトル**：1行目に `# 〜` 形式で記事のタイトルを書く
+   - 英語の質問文をそのまま使わず、日本語読者向けにリライト
+   - 主要な数値（オッズ%）か固有名詞を含め、検索意図に合うキャッチーな見出しに
+   - 例: 「フランスの2026 W杯優勝オッズはYES 17%──Polymarket最新分析」
 1. **## 要点（TL;DR）**：3〜4個の箇条書きで「現在のオッズ・直近トレンド・注目すべき材料」を結論先出し（AI検索エンジンが引用しやすい形）
 2. **リード文**（150字程度）：イベントの概要とオッズの現状を要約
 3. **背景・ファンダメンタルズ**：このイベントが注目される理由
-4. **オッズ推移の分析**：7日間の変動を具体的な数値で解説
+4. **オッズ推移の分析**：以下の専用フォーマットで書くこと
+   - 冒頭に「**オッズスナップショット**」という段落を置き、以下の箇条書き形式で数値を明示：
+     - 現在のオッズ: YES XX.X% / NO XX.X%
+     - 7日前のオッズ: YES XX.X%（参照値）
+     - 期間内ピーク → ボトム: YES XX.X% → XX.X%
+     - 方向性: 7日前 XX.X% → ピーク XX.X% → 現在 XX.X%（変動 ±X.Xpt）
+   - その後にプロセ解説を続ける
+   - 数値表を使う場合は markdown テーブルではなく上記の箇条書きを優先（モバイルでの見やすさのため）
 5. **関連ニュースが示す市場文脈**：直近の報道からの示唆（関連ニュースがある場合のみ）
 6. **流動性・出来高の所感**：市場の信頼性について（実取引者の視点を交えて）
 7. **今後の注目ポイント**：価格変動のトリガーになりうる材料
@@ -206,17 +221,27 @@ def generate_article(market: Market, related_news: list | None = None,
             cache_create,
         )
 
-    # サムネ生成（質問文 + カテゴリから）
+    # 先頭行の `# 日本語タイトル` を抽出し、本文からは除去
+    title_match = re.match(r"^\s*#\s+(.+?)\s*\n", full_text)
+    if title_match:
+        ja_title = title_match.group(1).strip()
+        body = full_text[title_match.end():]
+    else:
+        # Claudeが見出しを書かなかった場合は英語タイトルにフォールバック
+        ja_title = market.question
+        body = full_text
+
+    # サムネ生成（日本語タイトル + カテゴリから）
     thumb_path = generate_thumbnail(
         slug=market.condition_id,
-        title=market.question,
+        title=ja_title,
         summary=f"Polymarketの予測市場。出来高 ${market.volume:,.0f} USD。{market.category}カテゴリ。",
         category=market.category,
     )
     thumbnail_name = thumb_path.name if thumb_path else ""
 
-    # フロントマター + 本文
-    content = _build_frontmatter(market, thumbnail_name) + full_text
+    # フロントマター + 本文（タイトル行は除去済み）
+    content = _build_frontmatter(market, ja_title, thumbnail_name) + body
 
     # 関連ニュースを参考文献として末尾に列挙
     if related_news:
