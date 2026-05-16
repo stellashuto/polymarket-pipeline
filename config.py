@@ -38,19 +38,26 @@ MARKET_LIMIT = 30
 # 出来高フィルター：これ未満のマーケットはスキップ（USD）
 MIN_VOLUME = 50_000
 
-# ニュースRSSフィード（仮想通貨・金融・政治・経済を網羅）
+# ニュースRSSフィード
+# 著作権リスクを下げるため:
+#  - 日本語ソース: 仮想通貨専門メディア（業界標準のリライト慣行に沿う）
+#  - 英語ソース: 海外メディアを日本語へ翻案 → 著作権法上「翻訳」として独立著作物
+#                政治・経済（FRB / SEC / 規制 / トランプ政策）も濃くカバーされる
 NEWS_FEEDS: list[dict] = [
-    # --- 仮想通貨 ---
-    {"name": "CoinPost",          "url": "https://coinpost.jp/?feed=rss2",         "category_hint": "crypto"},
-    {"name": "CoinDesk JAPAN",    "url": "https://www.coindeskjapan.com/feed/",    "category_hint": "crypto"},
-    {"name": "あたらしい経済",       "url": "https://www.neweconomy.jp/feed",          "category_hint": "crypto"},
-    {"name": "Crypto Times",      "url": "https://crypto-times.jp/feed/",          "category_hint": "crypto"},
-    # --- 政治・国際 ---
-    {"name": "NHK 政治",          "url": "https://www.nhk.or.jp/rss/news/cat4.xml", "category_hint": "politics"},
-    {"name": "NHK 国際",          "url": "https://www.nhk.or.jp/rss/news/cat6.xml", "category_hint": "politics"},
-    # --- 経済 ---
-    {"name": "NHK ビジネス",      "url": "https://www.nhk.or.jp/rss/news/cat5.xml", "category_hint": "economics"},
+    # --- 日本語 仮想通貨専門 ---
+    {"name": "CoinPost",          "url": "https://coinpost.jp/?feed=rss2",                                "category_hint": "crypto"},
+    {"name": "CoinDesk JAPAN",    "url": "https://www.coindeskjapan.com/feed/",                           "category_hint": "crypto"},
+    {"name": "あたらしい経済",       "url": "https://www.neweconomy.jp/feed",                                 "category_hint": "crypto"},
+    {"name": "Crypto Times",      "url": "https://crypto-times.jp/feed/",                                 "category_hint": "crypto"},
+    # --- 英語 海外メディア（日本語化）---
+    {"name": "CoinDesk",          "url": "https://www.coindesk.com/arc/outboundfeeds/rss/?outputType=xml","category_hint": "crypto"},
+    {"name": "Cointelegraph",     "url": "https://cointelegraph.com/rss",                                 "category_hint": "crypto"},
+    {"name": "The Block",         "url": "https://www.theblock.co/rss.xml",                               "category_hint": "crypto"},
+    {"name": "Decrypt",           "url": "https://decrypt.co/feed",                                       "category_hint": "crypto"},
 ]
+
+# 英語ソース名のセット（カテゴリ推定で英単語キーワードを重み付けするため）
+ENGLISH_SOURCES = {"CoinDesk", "Cointelegraph", "The Block", "Decrypt"}
 
 # 1フィードあたり取得件数の上限
 NEWS_PER_FEED = 10

@@ -68,25 +68,61 @@ def _yaml_safe(text: str) -> str:
 
 
 def _infer_news_category(item: NewsItem) -> str:
-    """ニュースのタイトル・タグから日本語サイト用カテゴリを推定する。"""
+    """ニュースのタイトル・タグから日本語サイト用カテゴリを推定する。
+    優先順位: politics > economics > crypto
+    (規制・政策ニュースは crypto より politics として分類した方が読者の関心軸に合う)
+    """
     text = (item.title + " " + " ".join(item.tags)).lower()
-    if any(k in text for k in ["bitcoin", "btc", "eth", "ethereum", "altcoin",
-                                "defi", "nft", "stablecoin", "blockchain",
-                                "ビットコイン", "イーサリアム", "暗号資産", "仮想通貨"]):
-        return "crypto"
-    if any(k in text for k in ["fed", "frb", "gdp", "inflation", "rate",
-                                "stock", "fx", "金利", "インフレ", "株価"]):
-        return "economics"
-    if any(k in text for k in ["election", "tariff", "war", "trump",
-                                "選挙", "政府", "規制", "法案"]):
+
+    # 政治・規制・地政学（最優先）
+    politics_kw = [
+        "election", "tariff", "sanction", "war", "military", "treaty",
+        "trump", "biden", "congress", "senate", "regulator", "regulation",
+        "sec ", " sec,", "cftc", "lawmaker", "bill ", "vote ", "policy",
+        "white house", "executive order", "supreme court",
+        "選挙", "政府", "規制", "法案", "条約", "首脳",
+    ]
+    if any(k in text for k in politics_kw):
         return "politics"
+
+    # 経済・マクロ（次点）
+    economics_kw = [
+        "fed ", "federal reserve", "frb", "fomc", "gdp", "inflation",
+        "interest rate", "rate cut", "rate hike", "recession", "unemployment",
+        "stock", "s&p", "nasdaq", "fx", "yen", "dollar", "treasury",
+        "金利", "インフレ", "株価", "為替", "景気",
+    ]
+    if any(k in text for k in economics_kw):
+        return "economics"
+
+    # 仮想通貨
+    crypto_kw = [
+        "bitcoin", "btc", "eth", "ethereum", "altcoin", "solana", "sol ",
+        "defi", "nft", "stablecoin", "blockchain", "ripple", "xrp",
+        "web3", "dao", "token", "mining", "etf",
+        "ビットコイン", "イーサリアム", "暗号資産", "仮想通貨", "ステーブルコイン",
+    ]
+    if any(k in text for k in crypto_kw):
+        return "crypto"
+
     return item.category_hint or "crypto"
 
 
 def _build_user_prompt(item: NewsItem) -> str:
+    from config import ENGLISH_SOURCES
     published = item.published.strftime("%Y-%m-%d %H:%M UTC") if item.published else "不明"
+    is_english = item.source in ENGLISH_SOURCES
+    translation_note = ""
+    if is_english:
+        translation_note = (
+            "\n## 重要: 翻訳に関する指示\n"
+            "- 元記事は英語です。**完全に日本語にローカライズ**してください\n"
+            "- 専門用語は日本の読者向けに分かりやすく言い換える（例: `bill` → 法案、`Senator` → 上院議員）\n"
+            "- 数値・固有名詞は維持しつつ、文章構造は日本語として自然に再構成する\n"
+            "- 英単語を残す場合は初出時に括弧で日本語訳を添える（例: `CFTC（米商品先物取引委員会）`）\n"
+        )
     return f"""下記の海外/国内ニュース（一次情報のサマリー）を元に、日本の投資家向けに日本語の解説記事を書いてください。
-
+{translation_note}
 ## 元ニュース情報
 - タイトル: {item.title}
 - ソース: {item.source}
