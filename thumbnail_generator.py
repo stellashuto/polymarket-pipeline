@@ -9,6 +9,8 @@ Thumbnail generator.
 """
 
 import logging
+import re
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -105,17 +107,35 @@ def generate_thumbnail(slug: str, title: str, summary: str, category: str,
 
     try:
         client = replicate.Client(api_token=REPLICATE_API_TOKEN)
-        output = client.run(
-            IMAGE_MODEL,
-            input={
-                "prompt": visual_prompt,
-                "aspect_ratio": "16:9",
-                "num_outputs": 1,
-                "output_format": "webp",
-                "output_quality": 85,
-                "go_fast": True,
-            },
-        )
+        # Replicateの無料ティアはバースト1なのでリトライ込みで安全に実行
+        output = None
+        for attempt in range(5):
+            try:
+                output = client.run(
+                    IMAGE_MODEL,
+                    input={
+                        "prompt": visual_prompt,
+                        "aspect_ratio": "16:9",
+                        "num_outputs": 1,
+                        "output_format": "webp",
+                        "output_quality": 85,
+                        "go_fast": True,
+                    },
+                )
+                break
+            except replicate.exceptions.ReplicateError as e:
+                # 429: rate limit. 数秒待ってからリトライ
+                msg = str(e)
+                m = re.search(r"resets in ~(\d+)s", msg)
+                if "429" in msg or "throttled" in msg.lower():
+                    wait = int(m.group(1)) + 2 if m else 12
+                    logger.warning("Rate limited; retry in %ds (attempt %d/5)", wait, attempt + 1)
+                    time.sleep(wait)
+                    continue
+                raise
+
+        if output is None:
+            raise RuntimeError("Replicate exhausted retries")
 
         # Replicate v0.32+ returns a list of FileOutput objects
         if isinstance(output, list) and output:
