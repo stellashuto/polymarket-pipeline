@@ -38,34 +38,38 @@ logger = logging.getLogger("main")
 
 
 def run_news_flow(limit: int, dry_run: bool) -> int:
-    """Flow A: RSS → Claude リライト記事。"""
+    """Flow A: RSS → Claude リライト記事。重複検出でスキップした場合は次の候補を試す。"""
     logger.info("=== Flow A: News rewrite ===")
     news = NewsScraper().fetch(fresh_only=True)
     if not news:
         logger.warning("No news items fetched.")
         return 0
 
-    targets = news[:limit]
-    logger.info("Rewriting top %d news items.", len(targets))
+    logger.info("Trying up to %d news items (skipping duplicates).", limit)
 
     if dry_run:
-        for n in targets:
+        for n in news[:limit]:
             print(f"  [DRY-RUN] [{n.source}] {n.title[:70]}")
         return 0
 
     saved = 0
-    for item in targets:
+    attempted = 0
+    for item in news:
+        if saved >= limit:
+            break
+        attempted += 1
         try:
-            generate_news_article(item)
-            saved += 1
+            result = generate_news_article(item)
+            if result is not None:
+                saved += 1
         except Exception as e:
             logger.error("News article failed (%s): %s", item.id, e)
-    logger.info("Flow A done: %d/%d articles generated.", saved, len(targets))
+    logger.info("Flow A done: %d articles generated (%d attempted).", saved, attempted)
     return saved
 
 
 def run_market_flow(limit: int, dry_run: bool, use_news_context: bool = True) -> int:
-    """Flow B: Polymarket → Claude 解説記事（+関連ニュース）。"""
+    """Flow B: Polymarket → Claude 解説記事（+関連ニュース）。重複は自動スキップ。"""
     logger.info("=== Flow B: Polymarket commentary ===")
     scraper = PolymarketScraper()
     markets = scraper.scrape()
@@ -73,11 +77,12 @@ def run_market_flow(limit: int, dry_run: bool, use_news_context: bool = True) ->
         logger.warning("No markets found.")
         return 0
 
-    markets = sorted(markets, key=lambda m: m.volume, reverse=True)[:limit]
-    logger.info("Processing top %d markets.", len(markets))
+    # 出来高順に全てキューに入れて、上から順に試す（スキップ時は次の候補へ）
+    markets = sorted(markets, key=lambda m: m.volume, reverse=True)
+    logger.info("Trying up to %d markets from %d candidates.", limit, len(markets))
 
     if dry_run:
-        for m in markets:
+        for m in markets[:limit]:
             print(f"  [DRY-RUN] {m.question[:70]}  vol=${m.volume:,.0f}")
         return 0
 
@@ -90,16 +95,18 @@ def run_market_flow(limit: int, dry_run: bool, use_news_context: bool = True) ->
 
     saved = 0
     for market in markets:
-        logger.info("--- %s ---", market.question[:60])
+        if saved >= limit:
+            break
         related = find_related_news(market, news) if news else []
         if related:
-            logger.info("  related news: %d", len(related))
+            logger.info("--- %s (related: %d) ---", market.question[:60], len(related))
         try:
-            generate_article(market, related_news=related)
-            saved += 1
+            result = generate_article(market, related_news=related)
+            if result is not None:
+                saved += 1
         except Exception as e:
             logger.error("Article failed (%s): %s", market.condition_id, e)
-    logger.info("Flow B done: %d/%d articles generated.", saved, len(markets))
+    logger.info("Flow B done: %d articles generated.", saved)
     return saved
 
 

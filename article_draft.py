@@ -15,9 +15,12 @@ from pathlib import Path
 
 import anthropic
 
+import time
+
 from config import ANTHROPIC_API_KEY, ARTICLES_DIR
 from polymarket_scraper import Market
 from thumbnail_generator import generate_thumbnail
+from dedupe import find_similar_article
 
 logger = logging.getLogger(__name__)
 
@@ -117,12 +120,32 @@ def _build_news_context(related_news: list) -> str:
     return "\n".join(lines)
 
 
-def generate_article(market: Market, related_news: list | None = None) -> Path:
+def generate_article(market: Market, related_news: list | None = None,
+                    skip_if_recent_hours: int = 18) -> Path | None:
     """
     Claudeを使ってPolymarket市況解説記事を生成し、Markdownファイルとして保存する。
 
     related_news が与えられた場合は記事中で関連報道として引用する。
+
+    skip_if_recent_hours 以内に同じマーケットを生成済みなら再生成しない
+    （朝・昼・夜の3回スケジュールで同じトップマーケットが繰り返し記事化されるのを防ぐ）。
     """
+    out_path = ARTICLES_DIR / f"{market.condition_id}.md"
+    if out_path.exists() and skip_if_recent_hours > 0:
+        age = time.time() - out_path.stat().st_mtime
+        if age < skip_if_recent_hours * 3600:
+            logger.info("Skipping recent market (age %.1fh): %s",
+                        age / 3600, market.question[:60])
+            return None
+
+    # 同じトピックの記事（別マーケット）が直近に生成されていればスキップ
+    similar = find_similar_article(market.question, hours=72, threshold=0.45,
+                                   skip_path=out_path)
+    if similar:
+        logger.info("Skipping similar-topic market (similar to %s): %s",
+                    similar.name, market.question[:60])
+        return None
+
     client = _get_client()
     market_context = _build_market_context(market)
     news_context = _build_news_context(related_news or [])

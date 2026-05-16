@@ -21,6 +21,7 @@ import httpx
 from config import ANTHROPIC_API_KEY, ARTICLES_DIR
 from news_scraper import NewsItem
 from thumbnail_generator import generate_thumbnail
+from dedupe import find_similar_article
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +143,13 @@ def generate_news_article(item: NewsItem) -> Optional[Path]:
     """ニュースを日本語のリライト記事として生成し、Markdownで保存する。"""
     client = _get_client()
     category = _infer_news_category(item)
+
+    # 過去72時間以内に類似タイトルの記事があれば、別ソースからの同一事件報道と判断してスキップ
+    similar = find_similar_article(item.title, hours=72, threshold=0.45)
+    if similar:
+        logger.info("Skipping duplicate news (similar to %s): %s",
+                    similar.name, item.title[:60])
+        return None
 
     logger.info("Rewriting news: [%s] %s", item.source, item.title[:60])
 
