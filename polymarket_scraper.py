@@ -40,12 +40,19 @@ _CATEGORY_RULES: list[tuple[str, list[str]]] = [
 ]
 
 
-def _infer_category(question: str) -> str:
+def _infer_categories(question: str) -> list[str]:
+    """質問文に該当する全カテゴリを優先順で返す。複数該当あり。"""
     q = question.lower()
+    matched: list[str] = []
     for category, keywords in _CATEGORY_RULES:
         if any(kw in q for kw in keywords):
-            return category
-    return "other"
+            matched.append(category)
+    return matched or ["other"]
+
+
+def _infer_category(question: str) -> str:
+    """互換性のためのプライマリカテゴリ。"""
+    return _infer_categories(question)[0]
 
 
 @dataclass
@@ -68,6 +75,7 @@ class Market:
     volume: float
     slug: str = ""
     event_slug: str = ""   # 親イベントのslug。URL構築に必須
+    categories: list[str] = field(default_factory=list)  # プライマリを含む全カテゴリ
     tokens: list[TokenHistory] = field(default_factory=list)
 
     @property
@@ -179,14 +187,24 @@ class PolymarketScraper:
                 time.sleep(0.15)   # CLOB rate-limit courtesy
 
             question = raw.get("question", "")
-            category = raw.get("category", "") or _infer_category(question)
+            inferred_cats = _infer_categories(question)
+            raw_cat = raw.get("category", "")
+            # APIに明示カテゴリがあれば最優先、その後推論結果を続ける（重複排除）
+            categories: list[str] = []
+            if raw_cat:
+                categories.append(raw_cat)
+            for c in inferred_cats:
+                if c not in categories:
+                    categories.append(c)
+            primary = categories[0]
             # 親イベントのslug（URL構築用）
             events = raw.get("events") or []
             event_slug = events[0].get("slug", "") if events else ""
             market = Market(
                 condition_id=condition_id,
                 question=question,
-                category=category,
+                category=primary,
+                categories=categories,
                 end_date=raw.get("endDate") or raw.get("end_date_iso", ""),
                 volume=volume,
                 slug=raw.get("slug", ""),

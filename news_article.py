@@ -76,45 +76,49 @@ def _yaml_safe(text: str) -> str:
     return _NON_ASCII_QUOTE.sub("'", text).replace("\\", "／")
 
 
-def _infer_news_category(item: NewsItem) -> str:
-    """ニュースのタイトル・タグから日本語サイト用カテゴリを推定する。
-    優先順位: politics > economics > crypto
-    (規制・政策ニュースは crypto より politics として分類した方が読者の関心軸に合う)
+_POLITICS_KW = [
+    "election", "tariff", "sanction", "war", "military", "treaty",
+    "trump", "biden", "congress", "senate", "regulator", "regulation",
+    "sec ", " sec,", "cftc", "lawmaker", "bill ", "vote ", "policy",
+    "white house", "executive order", "supreme court",
+    "選挙", "政府", "規制", "法案", "条約", "首脳",
+]
+_ECONOMICS_KW = [
+    "fed ", "federal reserve", "frb", "fomc", "gdp", "inflation",
+    "interest rate", "rate cut", "rate hike", "recession", "unemployment",
+    "stock", "s&p", "nasdaq", "fx", "yen", "dollar", "treasury",
+    "金利", "インフレ", "株価", "為替", "景気",
+]
+_CRYPTO_KW = [
+    "bitcoin", "btc", "eth", "ethereum", "altcoin", "solana", "sol ",
+    "defi", "nft", "stablecoin", "blockchain", "ripple", "xrp",
+    "web3", "dao", "token", "mining", "etf",
+    "ビットコイン", "イーサリアム", "暗号資産", "仮想通貨", "ステーブルコイン",
+]
+
+
+def _infer_news_categories(item: NewsItem) -> list[str]:
+    """ニュースが該当する全カテゴリを優先順で返す。
+
+    優先順位: politics > economics > crypto。
+    例: 「FRB金利動向がBTC価格に影響」のような記事は ["economics", "crypto"]。
     """
     text = (item.title + " " + " ".join(item.tags)).lower()
+    out: list[str] = []
+    if any(k in text for k in _POLITICS_KW):
+        out.append("politics")
+    if any(k in text for k in _ECONOMICS_KW):
+        out.append("economics")
+    if any(k in text for k in _CRYPTO_KW):
+        out.append("crypto")
+    if not out:
+        out = [item.category_hint or "crypto"]
+    return out
 
-    # 政治・規制・地政学（最優先）
-    politics_kw = [
-        "election", "tariff", "sanction", "war", "military", "treaty",
-        "trump", "biden", "congress", "senate", "regulator", "regulation",
-        "sec ", " sec,", "cftc", "lawmaker", "bill ", "vote ", "policy",
-        "white house", "executive order", "supreme court",
-        "選挙", "政府", "規制", "法案", "条約", "首脳",
-    ]
-    if any(k in text for k in politics_kw):
-        return "politics"
 
-    # 経済・マクロ（次点）
-    economics_kw = [
-        "fed ", "federal reserve", "frb", "fomc", "gdp", "inflation",
-        "interest rate", "rate cut", "rate hike", "recession", "unemployment",
-        "stock", "s&p", "nasdaq", "fx", "yen", "dollar", "treasury",
-        "金利", "インフレ", "株価", "為替", "景気",
-    ]
-    if any(k in text for k in economics_kw):
-        return "economics"
-
-    # 仮想通貨
-    crypto_kw = [
-        "bitcoin", "btc", "eth", "ethereum", "altcoin", "solana", "sol ",
-        "defi", "nft", "stablecoin", "blockchain", "ripple", "xrp",
-        "web3", "dao", "token", "mining", "etf",
-        "ビットコイン", "イーサリアム", "暗号資産", "仮想通貨", "ステーブルコイン",
-    ]
-    if any(k in text for k in crypto_kw):
-        return "crypto"
-
-    return item.category_hint or "crypto"
+def _infer_news_category(item: NewsItem) -> str:
+    """互換性のためのプライマリカテゴリ。"""
+    return _infer_news_categories(item)[0]
 
 
 def _build_user_prompt(item: NewsItem) -> str:
@@ -157,16 +161,19 @@ def _build_user_prompt(item: NewsItem) -> str:
 本文中で **元記事の文章を30字以上連続して転載しない**こと。要点は自分の言葉で再構成してください。"""
 
 
-def _build_frontmatter(item: NewsItem, title: str, category: str,
+def _build_frontmatter(item: NewsItem, title: str, categories: list[str],
                        thumbnail: str = "", title_en: str = "") -> str:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     published_iso = item.published.strftime("%Y-%m-%dT%H:%M:%SZ") if item.published else now
+    primary = categories[0] if categories else "other"
+    cats_yaml = "categories:\n" + "\n".join(f"  - {c}" for c in categories)
     return f"""---
 title: "{_yaml_safe(title)}"
 title_en: "{_yaml_safe(title_en)}"
 date: "{now}"
 published_at: "{published_iso}"
-category: "{category}"
+category: "{primary}"
+{cats_yaml}
 source: "{_yaml_safe(item.source)}"
 source_url: "{item.link}"
 news_id: "{item.id}"
@@ -188,7 +195,8 @@ def _extract_title(markdown: str, fallback: str) -> str:
 def generate_news_article(item: NewsItem) -> Optional[Path]:
     """ニュースを日本語のリライト記事として生成し、Markdownで保存する。"""
     client = _get_client()
-    category = _infer_news_category(item)
+    categories = _infer_news_categories(item)
+    category = categories[0]
 
     # 過去72時間以内に類似タイトルの記事があれば、別ソースからの同一事件報道と判断してスキップ
     similar = find_similar_article(item.title, hours=72, threshold=0.45)
@@ -237,7 +245,7 @@ def generate_news_article(item: NewsItem) -> Optional[Path]:
         logger.info("EN title: %s", title_en[:80])
 
     # 引用元はfrontmatter (source / source_url) と記事ページのヘッダで明示される
-    content = _build_frontmatter(item, title, category, thumbnail_name, title_en) + body
+    content = _build_frontmatter(item, title, categories, thumbnail_name, title_en) + body
 
     out_path = ARTICLES_DIR / f"{slug}.md"
     out_path.write_text(content, encoding="utf-8")

@@ -110,6 +110,9 @@ def _build_frontmatter(market: Market, title: str, thumbnail: str = "",
     safe_title = title.replace('"', "'")
     safe_q_en  = market.question.replace('"', "'")
     safe_title_en = (title_en or "").replace('"', "'")
+    # 複数カテゴリ。Marketに無い場合はプライマリだけ
+    cats = market.categories or [market.category]
+    cats_yaml = "categories:\n" + "\n".join(f"  - {c}" for c in cats)
 
     # チャート描画用に各トークンの履歴をコンパクトなJSON配列で書き出す
     # [[unix_ts, price], ...] 形式（小数4桁・整数Unix秒）
@@ -133,6 +136,7 @@ title_en: "{safe_title_en}"
 question_en: "{safe_q_en}"
 date: "{now}"
 category: "{market.category}"
+{cats_yaml}
 volume_usd: {market.volume:.0f}
 condition_id: "{market.condition_id}"
 polymarket_slug: "{market.slug}"
