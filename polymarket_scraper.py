@@ -67,12 +67,21 @@ class Market:
     end_date: str
     volume: float
     slug: str = ""
+    event_slug: str = ""   # 親イベントのslug。URL構築に必須
     tokens: list[TokenHistory] = field(default_factory=list)
 
     @property
     def polymarket_url(self) -> str:
-        """Polymarket公式ページのURL。"""
-        return f"https://polymarket.com/event/{self.slug}" if self.slug else ""
+        """Polymarket公式マーケットページのURL。
+
+        正しい形式: /event/{event_slug}/{market_slug}
+        event_slug がない場合は /market/{slug} (リダイレクト経由) にフォールバック。
+        """
+        if self.event_slug and self.slug:
+            return f"https://polymarket.com/event/{self.event_slug}/{self.slug}"
+        if self.slug:
+            return f"https://polymarket.com/market/{self.slug}"
+        return ""
 
     def yes_token(self) -> Optional[TokenHistory]:
         for t in self.tokens:
@@ -171,6 +180,9 @@ class PolymarketScraper:
 
             question = raw.get("question", "")
             category = raw.get("category", "") or _infer_category(question)
+            # 親イベントのslug（URL構築用）
+            events = raw.get("events") or []
+            event_slug = events[0].get("slug", "") if events else ""
             market = Market(
                 condition_id=condition_id,
                 question=question,
@@ -178,6 +190,7 @@ class PolymarketScraper:
                 end_date=raw.get("endDate") or raw.get("end_date_iso", ""),
                 volume=volume,
                 slug=raw.get("slug", ""),
+                event_slug=event_slug,
                 tokens=tokens,
             )
             results.append(market)
