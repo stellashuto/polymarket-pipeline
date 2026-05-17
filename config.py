@@ -29,8 +29,11 @@ SITE_THUMBNAILS_DIR: Path | None = (
 # どのカテゴリキーワードをアクティブに取得するか
 TARGET_CATEGORIES = ["politics", "crypto", "economics"]
 
-# 1記事あたりの取得オッズ履歴（日数）
-HISTORY_DAYS = 7
+# Polymarket履歴データの集計粒度（分）。interval=max と併用してマーケット作成時からの
+# 全期間データを取得する。fidelity=60 (1時間足) でデータ量と精度のバランスを取る
+HISTORY_FIDELITY = 60
+# 旧設定（startTs/endTs指定時の日数。現在はinterval=maxを使うため未使用だが互換のため保持）
+HISTORY_DAYS = 90
 
 # 取得マーケット上限（1バッチ）
 MARKET_LIMIT = 30

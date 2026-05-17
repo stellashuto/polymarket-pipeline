@@ -16,7 +16,7 @@ import httpx
 
 from config import (
     GAMMA_BASE, CLOB_BASE,
-    HISTORY_DAYS, MARKET_LIMIT, MIN_VOLUME,
+    HISTORY_DAYS, HISTORY_FIDELITY, MARKET_LIMIT, MIN_VOLUME,
 )
 
 logger = logging.getLogger(__name__)
@@ -119,16 +119,15 @@ class PolymarketScraper:
             return None
 
     def _fetch_prices_history(self, token_id: str) -> list[dict]:
-        end_ts   = int(time.time())
-        start_ts = end_ts - HISTORY_DAYS * 86_400
+        # Polymarket API は startTs/endTs の指定だと最大60日程度に制限される。
+        # interval=max を使うとマーケット作成時からの全期間データを取得できる。
         try:
             resp = self._client.get(
                 f"{CLOB_BASE}/prices-history",
                 params={
                     "market":   token_id,
-                    "startTs":  start_ts,
-                    "endTs":    end_ts,
-                    "fidelity": 60,   # 60 min bucket
+                    "interval": "max",
+                    "fidelity": HISTORY_FIDELITY,
                 },
             )
             resp.raise_for_status()
