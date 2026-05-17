@@ -1,15 +1,18 @@
 """
 Backfill English titles.
 
-`title_en` フィールドが空または存在しない既存記事に対して、
-Claude Haiku でタイトルを英訳して frontmatter に書き戻す。
+`title_en` フィールドが空または存在しない既存記事に対して、Claude で
+タイトルを英訳して frontmatter に書き戻す。
+
+--force 付きで実行すると既存の title_en も上書きする（モデル変更時の再翻訳用）。
 """
 
+import argparse
 import logging
 import re
 from pathlib import Path
 
-from config import ARTICLES_DIR, ENGLISH_SOURCES
+from config import ARTICLES_DIR
 from translator import translate_title
 
 logger = logging.getLogger(__name__)
@@ -36,7 +39,6 @@ def _set_title_en(text: str, title_en: str) -> str:
             count=1,
             flags=re.MULTILINE,
         )
-    # titleの行の直後に挿入
     return re.sub(
         r'^(title:\s*"[^"]*"\s*)$',
         f'\\1\ntitle_en: "{safe}"',
@@ -46,14 +48,14 @@ def _set_title_en(text: str, title_en: str) -> str:
     )
 
 
-def backfill() -> int:
+def backfill(force: bool = False) -> int:
     updated = 0
     for md in sorted(ARTICLES_DIR.glob("*.md")):
         text = md.read_text(encoding="utf-8")
         fm = _parse_frontmatter(text)
         if not fm:
             continue
-        if fm.get("title_en"):
+        if fm.get("title_en") and not force:
             logger.info("Skip (has title_en): %s", md.name)
             continue
 
@@ -61,8 +63,6 @@ def backfill() -> int:
         if not title_ja:
             continue
 
-        # 英語ソースから引用したニュースは、frontmatter内に元英語タイトルを残せていないため
-        # Haikuで翻訳して英語タイトルを作る（再構成された日本語タイトルから英語に戻す）
         title_en = translate_title(title_ja)
         if not title_en:
             logger.warning("Translation failed: %s", md.name)
@@ -82,4 +82,8 @@ if __name__ == "__main__":
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
-    backfill()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--force", action="store_true",
+                        help="既存の title_en も上書きする（モデル変更時の再翻訳用）")
+    args = parser.parse_args()
+    backfill(force=args.force)

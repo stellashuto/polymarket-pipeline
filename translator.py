@@ -14,7 +14,7 @@ from config import ANTHROPIC_API_KEY
 
 logger = logging.getLogger(__name__)
 
-MODEL = "claude-haiku-4-5"  # コスト最重視
+MODEL = "claude-sonnet-4-6"  # 品質重視（より自然な英語タイトル）
 
 _client: Optional[anthropic.Anthropic] = None
 

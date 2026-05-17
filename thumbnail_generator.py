@@ -24,7 +24,7 @@ from config import (
 
 logger = logging.getLogger(__name__)
 
-PROMPT_MODEL = "claude-haiku-4-5"   # コスト最重視
+PROMPT_MODEL = "claude-sonnet-4-6"   # 品質重視（より洗練されたサムネプロンプト）
 IMAGE_MODEL  = "black-forest-labs/flux-schnell"
 
 PROMPT_SYSTEM = """You are a visual director for a Japanese cryptocurrency / finance news media site.
