@@ -25,7 +25,7 @@ from config import (
 logger = logging.getLogger(__name__)
 
 PROMPT_MODEL = "claude-sonnet-4-6"   # 品質重視（より洗練されたサムネプロンプト）
-IMAGE_MODEL  = "black-forest-labs/flux-schnell"
+IMAGE_MODEL  = "black-forest-labs/flux-1.1-pro"   # フォトリアル・シネマ感重視
 
 PROMPT_SYSTEM = """You are a visual director for a Japanese cryptocurrency / finance news media site.
 Your job: given a news article (title + short summary + category), produce ONE short English image-generation prompt
@@ -116,10 +116,10 @@ def generate_thumbnail(slug: str, title: str, summary: str, category: str,
                     input={
                         "prompt": visual_prompt,
                         "aspect_ratio": "16:9",
-                        "num_outputs": 1,
                         "output_format": "webp",
                         "output_quality": 85,
-                        "go_fast": True,
+                        "safety_tolerance": 2,    # 1-6, default 2 (報道用途は緩めでOK)
+                        "prompt_upsampling": False,  # Sonnetで十分詳細なので追加加工不要
                     },
                 )
                 break

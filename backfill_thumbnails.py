@@ -45,26 +45,25 @@ def _update_thumbnail_field(text: str, thumb_name: str) -> str:
     )
 
 
-def backfill() -> int:
+def backfill(force: bool = False) -> int:
     updated = 0
-    for md in ARTICLES_DIR.glob("*.md"):
+    for md in sorted(ARTICLES_DIR.glob("*.md")):
         text = md.read_text(encoding="utf-8")
         fm = _parse_frontmatter(text)
         if not fm:
             continue
-        if fm.get("thumbnail"):
+        if fm.get("thumbnail") and not force:
             logger.info("Skip (has thumbnail): %s", md.name)
             continue
 
         slug = md.stem
         title = fm.get("title", "")
         category = fm.get("category", "other")
-        # 本文の冒頭500文字をsummaryとして渡す
         body = text[len(_FRONTMATTER_RE.match(text).group(0)):]
         summary = re.sub(r"[#*`>\-\[\]()]", " ", body)[:500]
 
         logger.info("Backfilling: %s", md.name)
-        thumb = generate_thumbnail(slug, title, summary, category)
+        thumb = generate_thumbnail(slug, title, summary, category, force=force)
         if not thumb:
             logger.warning("Failed to generate thumbnail for %s", md.name)
             continue
@@ -79,8 +78,13 @@ def backfill() -> int:
 
 
 if __name__ == "__main__":
+    import argparse
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
-    backfill()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--force", action="store_true",
+                        help="既存のサムネも再生成する（モデル変更時の再生成用）")
+    args = parser.parse_args()
+    backfill(force=args.force)
