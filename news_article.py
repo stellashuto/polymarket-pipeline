@@ -18,10 +18,11 @@ from typing import Optional
 import anthropic
 import httpx
 
-from config import ANTHROPIC_API_KEY, ARTICLES_DIR
+from config import ANTHROPIC_API_KEY, ARTICLES_DIR, ENGLISH_SOURCES
 from news_scraper import NewsItem
 from thumbnail_generator import generate_thumbnail
 from dedupe import find_similar_article
+from translator import translate_title
 
 logger = logging.getLogger(__name__)
 
@@ -157,11 +158,12 @@ def _build_user_prompt(item: NewsItem) -> str:
 
 
 def _build_frontmatter(item: NewsItem, title: str, category: str,
-                       thumbnail: str = "") -> str:
+                       thumbnail: str = "", title_en: str = "") -> str:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     published_iso = item.published.strftime("%Y-%m-%dT%H:%M:%SZ") if item.published else now
     return f"""---
 title: "{_yaml_safe(title)}"
+title_en: "{_yaml_safe(title_en)}"
 date: "{now}"
 published_at: "{published_iso}"
 category: "{category}"
@@ -226,8 +228,16 @@ def generate_news_article(item: NewsItem) -> Optional[Path]:
     thumb_path = generate_thumbnail(slug, title, item.summary, category)
     thumbnail_name = thumb_path.name if thumb_path else ""
 
+    # 英語タイトル: 英語ソースは元タイトルをそのまま使う、それ以外は翻訳
+    if item.source in ENGLISH_SOURCES:
+        title_en = item.title
+    else:
+        title_en = translate_title(title)
+    if title_en:
+        logger.info("EN title: %s", title_en[:80])
+
     # 引用元はfrontmatter (source / source_url) と記事ページのヘッダで明示される
-    content = _build_frontmatter(item, title, category, thumbnail_name) + body
+    content = _build_frontmatter(item, title, category, thumbnail_name, title_en) + body
 
     out_path = ARTICLES_DIR / f"{slug}.md"
     out_path.write_text(content, encoding="utf-8")

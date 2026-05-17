@@ -22,6 +22,7 @@ from config import ANTHROPIC_API_KEY, ARTICLES_DIR
 from polymarket_scraper import Market
 from thumbnail_generator import generate_thumbnail
 from dedupe import find_similar_article
+from translator import translate_title
 
 logger = logging.getLogger(__name__)
 
@@ -103,10 +104,12 @@ def _build_market_context(market: Market) -> str:
     return "\n".join(lines)
 
 
-def _build_frontmatter(market: Market, title: str, thumbnail: str = "") -> str:
+def _build_frontmatter(market: Market, title: str, thumbnail: str = "",
+                       title_en: str = "") -> str:
     now  = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     safe_title = title.replace('"', "'")
     safe_q_en  = market.question.replace('"', "'")
+    safe_title_en = (title_en or "").replace('"', "'")
 
     # チャート描画用に各トークンの履歴をコンパクトなJSON配列で書き出す
     # [[unix_ts, price], ...] 形式（小数4桁・整数Unix秒）
@@ -126,6 +129,7 @@ def _build_frontmatter(market: Market, title: str, thumbnail: str = "") -> str:
 
     return f"""---
 title: "{safe_title}"
+title_en: "{safe_title_en}"
 question_en: "{safe_q_en}"
 date: "{now}"
 category: "{market.category}"
@@ -269,8 +273,13 @@ def generate_article(market: Market, related_news: list | None = None,
     )
     thumbnail_name = thumb_path.name if thumb_path else ""
 
+    # 英語タイトルを生成（Haikuで翻訳、コスト極小）
+    title_en = translate_title(ja_title)
+    if title_en:
+        logger.info("EN title: %s", title_en[:80])
+
     # フロントマター + 本文（タイトル行は除去済み）
-    content = _build_frontmatter(market, ja_title, thumbnail_name) + body
+    content = _build_frontmatter(market, ja_title, thumbnail_name, title_en) + body
 
     # 関連ニュースを参考文献として末尾に列挙
     if related_news:
