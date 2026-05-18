@@ -140,6 +140,7 @@ category: "{market.category}"
 volume_usd: {market.volume:.0f}
 condition_id: "{market.condition_id}"
 polymarket_slug: "{market.slug}"
+polymarket_event_slug: "{market.event_slug}"
 polymarket_url: "{market.polymarket_url}"
 thumbnail: "{thumbnail}"
 type: "market"
@@ -179,6 +180,22 @@ def generate_article(market: Market, related_news: list | None = None,
             logger.info("Skipping recent market (age %.1fh): %s",
                         age / 3600, market.question[:60])
             return None
+
+    # 同じ親イベント (例: "What will happen before GTA VI?") の別マーケットが
+    # 直近72時間に生成されていればスキップ
+    if market.event_slug:
+        cutoff = time.time() - 72 * 3600
+        for p in ARTICLES_DIR.glob("*.md"):
+            if p == out_path or p.stat().st_mtime < cutoff:
+                continue
+            try:
+                head = p.read_text(encoding="utf-8")[:1500]
+            except OSError:
+                continue
+            if f'polymarket_event_slug: "{market.event_slug}"' in head:
+                logger.info("Skipping same-event market (event=%s): %s",
+                            market.event_slug, market.question[:60])
+                return None
 
     # 同じトピックの記事（別マーケット）が直近に生成されていればスキップ
     similar = find_similar_article(market.question, hours=72, threshold=0.45,

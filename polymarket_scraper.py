@@ -16,7 +16,7 @@ import httpx
 
 from config import (
     GAMMA_BASE, CLOB_BASE,
-    HISTORY_DAYS, HISTORY_FIDELITY, MARKET_LIMIT, MIN_VOLUME,
+    HISTORY_DAYS, HISTORY_FIDELITY, MARKET_LIMIT, MAX_PER_EVENT, MIN_VOLUME,
 )
 
 logger = logging.getLogger(__name__)
@@ -162,6 +162,13 @@ class PolymarketScraper:
         raw_markets = self._fetch_gamma_markets(limit=MARKET_LIMIT)
         logger.info("Got %d markets, filtering by volume >= %s", len(raw_markets), MIN_VOLUME)
 
+        # 親イベントごとに最大 MAX_PER_EVENT 件まで（同じイベントの兄弟マーケット独占を防ぐ）
+        # 出来高の高いものから採用するため事前に降順ソート
+        raw_markets = sorted(
+            raw_markets, key=lambda r: float(r.get("volume", 0) or 0), reverse=True,
+        )
+        event_count: dict[str, int] = {}
+
         results: list[Market] = []
 
         for raw in raw_markets:
@@ -169,6 +176,18 @@ class PolymarketScraper:
             volume       = float(raw.get("volume", 0) or 0)
 
             if not condition_id or volume < MIN_VOLUME:
+                continue
+
+            # 期限切れ・クローズ済みマーケットをスキップ
+            if raw.get("closed") or not raw.get("active", True):
+                continue
+
+            # 同一親イベントの上限チェック
+            events = raw.get("events") or []
+            event_slug = events[0].get("slug", "") if events else ""
+            if event_slug and event_count.get(event_slug, 0) >= MAX_PER_EVENT:
+                logger.info("  Skip same-event: %s (event=%s)",
+                            raw.get("question", "")[:50], event_slug)
                 continue
 
             clob = self._fetch_clob_market(condition_id)
@@ -197,9 +216,8 @@ class PolymarketScraper:
                 if c not in categories:
                     categories.append(c)
             primary = categories[0]
-            # 親イベントのslug（URL構築用）
-            events = raw.get("events") or []
-            event_slug = events[0].get("slug", "") if events else ""
+            # event_slug は上で取得済み
+            event_count[event_slug] = event_count.get(event_slug, 0) + 1 if event_slug else 0
             market = Market(
                 condition_id=condition_id,
                 question=question,

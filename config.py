@@ -35,11 +35,15 @@ HISTORY_FIDELITY = 60
 # 旧設定（startTs/endTs指定時の日数。現在はinterval=maxを使うため未使用だが互換のため保持）
 HISTORY_DAYS = 90
 
-# 取得マーケット上限（1バッチ）
-MARKET_LIMIT = 30
+# 取得マーケット上限（1バッチ）。多様性確保のため広めに取る
+MARKET_LIMIT = 80
 
 # 出来高フィルター：これ未満のマーケットはスキップ（USD）
 MIN_VOLUME = 50_000
+
+# 同じ親イベント（例: "What will happen before GTA VI?"）から1バッチで採用する
+# 最大マーケット数。サブマーケットが上位を独占して画一的にならないよう制限する
+MAX_PER_EVENT = 1
 
 # ニュースRSSフィード
 # 著作権リスクを下げるため:
