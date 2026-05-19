@@ -22,6 +22,7 @@ from news_scraper import NewsScraper
 from news_matcher import find_related_news
 from article_draft import generate_article
 from news_article import generate_news_article, _infer_news_category
+from airdrop_article import generate_airdrop_article
 from site_sync import sync_articles
 from diverse_select import diverse_pick
 
@@ -129,9 +130,38 @@ def run_market_flow(limit: int, dry_run: bool, use_news_context: bool = True) ->
     return saved
 
 
+def run_airdrop_flow(limit: int, dry_run: bool) -> int:
+    """Flow C: キュレート済みトピックリストからエアドロップ解説記事を生成。
+    プロジェクト単位の重複防止は airdrop_article 側で airdrop_slug を見て自動判定する。"""
+    logger.info("=== Flow C: Airdrop guides ===")
+
+    if dry_run:
+        from airdrop_article import _pick_topic
+        for _ in range(limit):
+            t = _pick_topic()
+            if t is None:
+                print("  [DRY-RUN] (no more topics)")
+                break
+            print(f"  [DRY-RUN] [{t.kind:7s}] [{t.audience:12s}] {t.slug}")
+        return 0
+
+    saved = 0
+    for _ in range(limit):
+        try:
+            result = generate_airdrop_article()
+            if result is None:
+                break  # 全トピック書き尽くした or 失敗
+            saved += 1
+        except Exception as e:
+            logger.error("Airdrop article failed: %s", e)
+            break
+    logger.info("Flow C done: %d articles generated.", saved)
+    return saved
+
+
 def main():
     parser = argparse.ArgumentParser(description="コンテンツ自動生成パイプライン")
-    parser.add_argument("flow", choices=["news", "market", "all"],
+    parser.add_argument("flow", choices=["news", "market", "airdrop", "all"],
                         help="実行するフロー")
     parser.add_argument("--limit", type=int, default=5,
                         help="news/market 単独実行時の上限 (default: 5)")
@@ -139,6 +169,8 @@ def main():
                         help="all モード時の Flow A 上限")
     parser.add_argument("--market-limit", type=int, default=2,
                         help="all モード時の Flow B 上限")
+    parser.add_argument("--airdrop-limit", type=int, default=1,
+                        help="all モード時の Flow C 上限")
     parser.add_argument("--dry-run", action="store_true",
                         help="記事を生成せず取得対象のみ表示")
     parser.add_argument("--no-news-context", action="store_true",
@@ -152,10 +184,13 @@ def main():
     elif args.flow == "market":
         run_market_flow(args.limit, args.dry_run,
                         use_news_context=not args.no_news_context)
+    elif args.flow == "airdrop":
+        run_airdrop_flow(args.limit, args.dry_run)
     else:  # all
         run_news_flow(args.news_limit, args.dry_run)
         run_market_flow(args.market_limit, args.dry_run,
                         use_news_context=not args.no_news_context)
+        run_airdrop_flow(args.airdrop_limit, args.dry_run)
 
     if not args.dry_run and not args.no_sync:
         sync_articles()

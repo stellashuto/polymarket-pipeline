@@ -14,6 +14,7 @@
 param(
   [int]$NewsLimit = 5,
   [int]$MarketLimit = 2,
+  [int]$AirdropLimit = 1,
   [switch]$DryRun,
   [switch]$SkipPush
 )
@@ -60,7 +61,7 @@ if (-not $env:REPLICATE_API_TOKEN) {
 Log "Step 1: generating articles..."
 Push-Location $PipelineDir
 try {
-  $pyArgs = @("main.py", "all", "--news-limit", $NewsLimit, "--market-limit", $MarketLimit)
+  $pyArgs = @("main.py", "all", "--news-limit", $NewsLimit, "--market-limit", $MarketLimit, "--airdrop-limit", $AirdropLimit)
   if ($DryRun) { $pyArgs += "--dry-run" }
   & python @pyArgs *>&1 | Tee-Object -FilePath $LogFile -Append
   if ($LASTEXITCODE -ne 0) {
