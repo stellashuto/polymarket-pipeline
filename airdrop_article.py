@@ -20,6 +20,7 @@ import httpx
 
 from config import ANTHROPIC_API_KEY, ARTICLES_DIR
 from airdrop_topics import ALL_TOPICS, AirdropTopic
+from news_scraper import NewsScraper, NewsItem
 from thumbnail_generator import generate_thumbnail
 from translator import translate_title
 
@@ -96,7 +97,54 @@ def _pick_topic() -> Optional[AirdropTopic]:
     return random.choice(candidates)
 
 
-def _build_user_prompt(topic: AirdropTopic) -> str:
+def _fetch_recent_news_for_topic(topic: AirdropTopic, news_items: list[NewsItem],
+                                  max_results: int = 5) -> list[NewsItem]:
+    """既取得のニュース一覧から、トピックに関連する直近記事を返す。
+
+    プロジェクト名 + search_keywords で大文字小文字を無視してマッチング。
+    新しい順に最大 max_results 件返す。
+    """
+    if topic.kind != "project":
+        return []
+    needles = [topic.project_name.lower()]
+    if topic.search_keywords:
+        needles.extend(k.lower() for k in topic.search_keywords)
+    needles = [n for n in needles if n and len(n) >= 3]
+    if not needles:
+        return []
+
+    matched: list[NewsItem] = []
+    for item in news_items:
+        haystack = (item.title + " " + item.summary).lower()
+        if any(n in haystack for n in needles):
+            matched.append(item)
+
+    # 公開日新しい順
+    matched.sort(
+        key=lambda n: n.published.timestamp() if n.published else 0,
+        reverse=True,
+    )
+    return matched[:max_results]
+
+
+def _format_news_for_prompt(news: list[NewsItem]) -> str:
+    if not news:
+        return ""
+    lines = ["", "## 直近のニュース動向（過去 1〜2 週間程度）",
+             "下記の報道を参考に、プロジェクトの「現在の状況」を記事に反映してください。",
+             "ただし長文の転載は避け、要点だけ自分の言葉で再構成すること。", ""]
+    for n in news:
+        date = n.published.strftime("%Y-%m-%d") if n.published else "n/a"
+        lines.append(f"### [{date}] {n.source}")
+        lines.append(f"タイトル: {n.title}")
+        if n.summary:
+            lines.append(f"要旨: {n.summary[:400]}")
+        lines.append(f"URL: {n.link}")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _build_user_prompt(topic: AirdropTopic, recent_news: list[NewsItem]) -> str:
     kind_jp = "プロジェクト解説" if topic.kind == "project" else "汎用ガイド"
     project_block = ""
     if topic.kind == "project":
@@ -104,7 +152,7 @@ def _build_user_prompt(topic: AirdropTopic) -> str:
 ## 取り上げるプロジェクト
 - 名称: {topic.project_name}
 - 公式URL: {topic.project_url}
-- プロジェクト概要: {topic.summary}
+- プロジェクト概要（参考、古い情報の可能性あり）: {topic.summary}
 
 注: 上記URL以外の外部URLは記事に含めないでください。怪しいサイトを誘導しないこと。
 """
@@ -114,20 +162,30 @@ def _build_user_prompt(topic: AirdropTopic) -> str:
 {topic.summary}
 """
 
+    news_block = _format_news_for_prompt(recent_news)
+    news_instruction = ""
+    if recent_news:
+        news_instruction = (
+            "\n**重要**: 上記の直近ニュースを記事に必ず反映してください。"
+            "「2025年〜時点の状況」「直近の報道では〜」のような時系列言及で、"
+            "古い知識ではなく最新の動向を中心に解説すること。"
+            "ニュースを引用する場合は「（出典: ソース名）」を文中に明記。\n"
+        )
+
     return f"""以下のテーマで日本語のエアドロップ解説記事を書いてください（{kind_jp}）。
 
 タイトルのヒント: {topic.title_hint}
 読者層: {"初心者" if topic.audience == "beginner" else "中級者（エアドロップハンター）"}
-{project_block}
-
+{project_block}{news_block}{news_instruction}
 ## 記事の構成
-0. **1行目に `# 日本語タイトル`** （タイトルヒントを元にキャッチーな日本語タイトルに）
+0. **1行目に `# 日本語タイトル`** （タイトルヒントを元にキャッチーな日本語タイトルに、可能なら直近ニュースの数値や固有名詞を含める）
 1. `## ポイント` — 3〜4個の結論先出し箇条書き
 2. リード文（120字程度）
 3. メインコンテンツ（複数のH2で構成、内容に応じて柔軟に）
-4. リスク・注意点（詐欺・Sybil・税金など該当するもの）
-5. まとめ
-6. `## よくある質問` — 3問（`### Q1. 質問文` 形式）
+{"4. **「最新動向」セクション** — 上記ニュースを基にプロジェクトの現状を3〜5段落で解説" if recent_news else ""}
+5. リスク・注意点（詐欺・Sybil・税金など該当するもの）
+6. まとめ
+7. `## よくある質問` — 3問（`### Q1. 質問文` 形式）
 
 人間の経験者として書いてください。AIっぽいテンプレ感を出さないこと。"""
 
@@ -155,14 +213,36 @@ type: "airdrop"
 """
 
 
-def generate_airdrop_article(topic: Optional[AirdropTopic] = None) -> Optional[Path]:
-    """エアドロップ記事を生成して保存する。topicを指定しない場合は未掲載から自動選択。"""
+def generate_airdrop_article(topic: Optional[AirdropTopic] = None,
+                              news_cache: Optional[list[NewsItem]] = None) -> Optional[Path]:
+    """エアドロップ記事を生成して保存する。topicを指定しない場合は未掲載から自動選択。
+
+    news_cache: 事前取得済みのニュースリストを渡すと再フェッチを避けられる
+                （main.pyから複数回呼ぶ際にAPI節約用）
+    """
     if topic is None:
         topic = _pick_topic()
     if topic is None:
         return None
 
     logger.info("Generating airdrop article: %s (%s)", topic.slug, topic.kind)
+
+    # プロジェクト解説の場合、関連ニュースを取得
+    recent_news: list[NewsItem] = []
+    if topic.kind == "project":
+        if news_cache is None:
+            try:
+                news_cache = NewsScraper().fetch(fresh_only=False)
+            except Exception as e:
+                logger.warning("News fetch failed for airdrop article: %s", e)
+                news_cache = []
+        recent_news = _fetch_recent_news_for_topic(topic, news_cache)
+        if recent_news:
+            logger.info("  Found %d recent news items for %s", len(recent_news), topic.project_name)
+            for n in recent_news[:3]:
+                logger.info("    - [%s] %s", n.source, n.title[:60])
+        else:
+            logger.info("  No recent news found for %s; writing evergreen content", topic.project_name)
 
     client = _get_client()
     full_text = ""
@@ -174,7 +254,7 @@ def generate_airdrop_article(topic: Optional[AirdropTopic] = None) -> Optional[P
             "text": SYSTEM_PROMPT,
             "cache_control": {"type": "ephemeral"},
         }],
-        messages=[{"role": "user", "content": _build_user_prompt(topic)}],
+        messages=[{"role": "user", "content": _build_user_prompt(topic, recent_news)}],
     ) as stream:
         for text in stream.text_stream:
             full_text += text

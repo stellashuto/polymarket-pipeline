@@ -17,6 +17,9 @@ class AirdropTopic:
     audience: str           # "beginner" | "intermediate"
     project_name: str = ""  # kind="project" のとき
     project_url: str = ""   # 公式URL
+    # ニュース検索用のキーワード群（プロジェクト名以外の表記揺れ・関連トークン名）
+    # 例: Linea → ["linea", "lxp", "consensys"]
+    search_keywords: list[str] = None  # type: ignore
 
 
 # ----------------------------------------------------------------------
@@ -30,6 +33,7 @@ PROJECT_TOPICS: list[AirdropTopic] = [
         title_hint="Lineaエアドロップ完全ガイド",
         summary="ConsenSysが開発するEthereum zkEVM L2。MetaMask統合・LXP（Linea Voyageポイント）獲得が期待値の高い活動。ブリッジ・スワップ・DeFi利用が定番タスク。LXPはオンチェーンスコアの可能性あり。",
         audience="intermediate",
+        search_keywords=["linea", "lxp", "consensys", "ライニア"],
     ),
     AirdropTopic(
         slug="scroll", kind="project", project_name="Scroll",
@@ -37,6 +41,7 @@ PROJECT_TOPICS: list[AirdropTopic] = [
         title_hint="Scrollエアドロップ参加方法とポイント獲得戦略",
         summary="Ethereum zkRollup L2。Scroll Marksというポイント制度を採用。ブリッジ→DEX・レンディング利用でMarks獲得。エコシステム参加者向けの広範な配布が期待されている。",
         audience="intermediate",
+        search_keywords=["scroll", "scroll marks", "スクロール"],
     ),
     AirdropTopic(
         slug="zksync", kind="project", project_name="zkSync Era",
@@ -44,6 +49,7 @@ PROJECT_TOPICS: list[AirdropTopic] = [
         title_hint="zkSync Era エアドロップの現状と次の動向",
         summary="Matter Labs開発のzk L2。2024年6月にZKトークンを配布済みだが、エコシステムプロジェクト（個別dApp）のエアドロップは継続中。zkSync上のdAppタスクが新たな狩場。",
         audience="intermediate",
+        search_keywords=["zksync", "zk era", "matter labs"],
     ),
     AirdropTopic(
         slug="base", kind="project", project_name="Base",
@@ -51,6 +57,7 @@ PROJECT_TOPICS: list[AirdropTopic] = [
         title_hint="Base（Coinbase L2）の関連エアドロップ戦略",
         summary="Coinbase運営のOP Stack L2。Base自体のトークンは未発表だが、エコシステムプロジェクト（Aerodrome、Friend.tech等）のエアドロップが活発。",
         audience="intermediate",
+        search_keywords=["base chain", "coinbase l2", "aerodrome"],
     ),
     AirdropTopic(
         slug="taiko", kind="project", project_name="Taiko",
@@ -58,6 +65,7 @@ PROJECT_TOPICS: list[AirdropTopic] = [
         title_hint="Taikoエアドロップ：ZKロールアップ参加のチャンス",
         summary="完全互換性を持つType-1 zkEVM。トークンTAIKOは2024年配布済みだが、Loyalty Program継続。テストネット参加者向けの追加配布も観測されている。",
         audience="intermediate",
+        search_keywords=["taiko", "タイコ"],
     ),
     AirdropTopic(
         slug="megaeth", kind="project", project_name="MegaETH",
@@ -65,6 +73,7 @@ PROJECT_TOPICS: list[AirdropTopic] = [
         title_hint="MegaETHエアドロップ期待値と早期参加方法",
         summary="リアルタイム処理を狙う新興L2。テストネット参加・コミュニティ貢献が主要タスク。Polymarketでもメインネット launch オッズが取引されるほど注目度高い。",
         audience="intermediate",
+        search_keywords=["megaeth", "mega eth"],
     ),
     AirdropTopic(
         slug="monad", kind="project", project_name="Monad",
@@ -72,6 +81,7 @@ PROJECT_TOPICS: list[AirdropTopic] = [
         title_hint="Monadエアドロップ完全攻略：testnet参加から本番まで",
         summary="EVM互換高速L1。Paradigm主導の資金調達で注目集める。テストネット参加者・ディスコード活動が主な期待値タスク。",
         audience="intermediate",
+        search_keywords=["monad", "モナド"],
     ),
     AirdropTopic(
         slug="berachain", kind="project", project_name="Berachain",
@@ -79,6 +89,7 @@ PROJECT_TOPICS: list[AirdropTopic] = [
         title_hint="Berachainエアドロップ：Proof-of-LiquidityチェーンのBGT戦略",
         summary="Proof-of-Liquidity採用の新興L1。BGTトークン仕組みが特徴的。テストネット参加・The Honey Jar NFT保有が代表的な期待値タスク。",
         audience="intermediate",
+        search_keywords=["berachain", "bera", "honey jar"],
     ),
 
     # --- リキッドステーキング / Restaking ---
@@ -88,6 +99,7 @@ PROJECT_TOPICS: list[AirdropTopic] = [
         title_hint="EigenLayerのRestaking活用とAVSエアドロップ攻略",
         summary="Ethereumのリステーキング基盤。EIGENトークンを既に配布したが、EigenLayer上のAVS（AltLayer、Renzo等）から続々とエアドロップが出ている状況。",
         audience="intermediate",
+        search_keywords=["eigenlayer", "eigen", "restaking", "リステーキング"],
     ),
     AirdropTopic(
         slug="ether-fi", kind="project", project_name="ether.fi",
@@ -95,6 +107,7 @@ PROJECT_TOPICS: list[AirdropTopic] = [
         title_hint="ether.fiの ETHFI ポイント仕組みとエアドロップハント",
         summary="リキッドリステーキングプロトコル。Loyalty Points・eETH保有でポイント獲得。Season 2 / 3 と継続的にエアドロップ実施。",
         audience="intermediate",
+        search_keywords=["ether.fi", "etherfi", "ethfi", "eeth"],
     ),
     AirdropTopic(
         slug="renzo", kind="project", project_name="Renzo",
@@ -102,6 +115,7 @@ PROJECT_TOPICS: list[AirdropTopic] = [
         title_hint="RenzoのezETHステーキングとREZエアドロップ参加",
         summary="EigenLayer上のリキッドリステーキング。ezETH預入でRenzo PointsとEigenLayer Pointsの両方を獲得できる「二重取り」が魅力。",
         audience="intermediate",
+        search_keywords=["renzo", "ezeth", "rez"],
     ),
     AirdropTopic(
         slug="symbiotic", kind="project", project_name="Symbiotic",
@@ -109,6 +123,7 @@ PROJECT_TOPICS: list[AirdropTopic] = [
         title_hint="Symbioticエアドロップ：EigenLayer対抗の新Restaking基盤",
         summary="Lido・Cyber・Paradigm支援のリステーキング新プロトコル。Cap upgrade時の早期参加が期待値高。",
         audience="intermediate",
+        search_keywords=["symbiotic", "シンビオティック"],
     ),
 
     # --- DeFi / Trading ---
@@ -118,6 +133,7 @@ PROJECT_TOPICS: list[AirdropTopic] = [
         title_hint="Hyperliquid HYPE 配布後の状況とSpot取引でのポイント獲得",
         summary="独自L1 + perp DEX。HYPEトークン配布は2024年だが、現在もユーザーポイントで継続配布。スポット取引・perp取引がポイントタスク。",
         audience="intermediate",
+        search_keywords=["hyperliquid", "hype", "ハイパーリキッド"],
     ),
     AirdropTopic(
         slug="pendle", kind="project", project_name="Pendle",
@@ -125,6 +141,7 @@ PROJECT_TOPICS: list[AirdropTopic] = [
         title_hint="Pendleの利回りトークン化を活用したエアドロップ最大化",
         summary="利回りをPT（元本）とYT（利回り）に分離するプロトコル。LRT・LSTのPT/YT取引で他プロジェクトのポイントを効率的に獲得できる。",
         audience="intermediate",
+        search_keywords=["pendle", "ペンドル"],
     ),
     AirdropTopic(
         slug="jupiter", kind="project", project_name="Jupiter",
@@ -132,6 +149,7 @@ PROJECT_TOPICS: list[AirdropTopic] = [
         title_hint="Jupiter（Solana DEXアグリゲータ）の継続エアドロップ戦略",
         summary="Solana最大手DEXアグリゲータ。JUPトークンの追加配布シーズンが継続。スワップ・LFG launchpad参加がタスク。",
         audience="intermediate",
+        search_keywords=["jupiter", "jup", "ジュピター"],
     ),
 
     # --- インフラ ---
@@ -141,6 +159,7 @@ PROJECT_TOPICS: list[AirdropTopic] = [
         title_hint="LayerZero ZRO 配布後のクロスチェーンエアドロップ動向",
         summary="主要なオムニチェーンメッセージングプロトコル。ZROトークン2024年配布。今後はLayerZeroを使う各dAppのエアドロップ参加が現実的。",
         audience="beginner",
+        search_keywords=["layerzero", "zro", "オムニチェーン"],
     ),
     AirdropTopic(
         slug="wormhole", kind="project", project_name="Wormhole",
@@ -148,6 +167,7 @@ PROJECT_TOPICS: list[AirdropTopic] = [
         title_hint="Wormholeブリッジ利用と W トークン関連プロジェクト攻略",
         summary="マルチチェーンメッセージング。Wトークン配布済みだが、Wormhole経由のプロジェクト関連エアドロップが継続。",
         audience="beginner",
+        search_keywords=["wormhole", "ワームホール"],
     ),
 
     # --- Social / Wallet ---
@@ -157,6 +177,7 @@ PROJECT_TOPICS: list[AirdropTopic] = [
         title_hint="Farcaster登録方法とdApp連携でのエアドロップ機会",
         summary="分散型ソーシャルプロトコル。FIDアカウント所有者向けのdApp配布（Degen、Moxie等）が活発。",
         audience="beginner",
+        search_keywords=["farcaster", "degen", "moxie", "ファーキャスター"],
     ),
     AirdropTopic(
         slug="hyperliquid-ecosystem", kind="project", project_name="Hyperliquid Ecosystem",
@@ -164,6 +185,7 @@ PROJECT_TOPICS: list[AirdropTopic] = [
         title_hint="Hyperliquid上のmemeコイン・新プロジェクトエアドロップ早分かり",
         summary="HyperliquidのHIP-1上場プロジェクト群。早期取引・流動性提供がチャンス。",
         audience="intermediate",
+        search_keywords=["hyperliquid", "hip-1", "hype spot"],
     ),
 
     # --- Solana系 ---
@@ -173,6 +195,7 @@ PROJECT_TOPICS: list[AirdropTopic] = [
         title_hint="Sonic SVM（Solana L2）のエアドロップ攻略法",
         summary="Solana初のSVM L2。ゲームdApp向けに特化。テストネット参加・取引がタスク。",
         audience="intermediate",
+        search_keywords=["sonic svm", "sonic chain"],
     ),
 ]
 

@@ -132,7 +132,8 @@ def run_market_flow(limit: int, dry_run: bool, use_news_context: bool = True) ->
 
 def run_airdrop_flow(limit: int, dry_run: bool) -> int:
     """Flow C: キュレート済みトピックリストからエアドロップ解説記事を生成。
-    プロジェクト単位の重複防止は airdrop_article 側で airdrop_slug を見て自動判定する。"""
+    プロジェクト単位の重複防止は airdrop_article 側で airdrop_slug を見て自動判定する。
+    プロジェクト記事には直近のニュースを自動で組み込む（最新情報反映）。"""
     logger.info("=== Flow C: Airdrop guides ===")
 
     if dry_run:
@@ -145,10 +146,19 @@ def run_airdrop_flow(limit: int, dry_run: bool) -> int:
             print(f"  [DRY-RUN] [{t.kind:7s}] [{t.audience:12s}] {t.slug}")
         return 0
 
+    # ニュースを1回だけフェッチして使い回す（複数記事生成時のAPI節約）
+    news_cache = None
+    try:
+        news_cache = NewsScraper().fetch(fresh_only=False)
+        logger.info("Cached %d news items for airdrop articles", len(news_cache))
+    except Exception as e:
+        logger.warning("News fetch failed (airdrop flow will use evergreen content): %s", e)
+        news_cache = []
+
     saved = 0
     for _ in range(limit):
         try:
-            result = generate_airdrop_article()
+            result = generate_airdrop_article(news_cache=news_cache)
             if result is None:
                 break  # 全トピック書き尽くした or 失敗
             saved += 1
