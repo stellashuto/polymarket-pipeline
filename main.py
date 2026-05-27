@@ -23,6 +23,7 @@ from news_matcher import find_related_news
 from article_draft import generate_article
 from news_article import generate_news_article, _infer_news_category
 from airdrop_article import generate_airdrop_article
+from crypto_explainer import generate_crypto_article
 from site_sync import sync_articles
 from diverse_select import diverse_pick
 
@@ -169,18 +170,56 @@ def run_airdrop_flow(limit: int, dry_run: bool) -> int:
     return saved
 
 
+def run_crypto_flow(limit: int, dry_run: bool) -> int:
+    """Flow D: 仮想通貨銘柄解説記事。トークン単位の重複防止＋RSSニュース反映。"""
+    logger.info("=== Flow D: Crypto explainers ===")
+
+    if dry_run:
+        from crypto_explainer import _pick_token
+        for _ in range(limit):
+            t = _pick_token()
+            if t is None:
+                print("  [DRY-RUN] (no more tokens)")
+                break
+            print(f"  [DRY-RUN] [{t.category:10s}] {t.symbol} ({t.name})")
+        return 0
+
+    news_cache = None
+    try:
+        news_cache = NewsScraper().fetch(fresh_only=False)
+        logger.info("Cached %d news items for crypto explainers", len(news_cache))
+    except Exception as e:
+        logger.warning("News fetch failed (crypto flow uses evergreen): %s", e)
+        news_cache = []
+
+    saved = 0
+    for _ in range(limit):
+        try:
+            result = generate_crypto_article(news_cache=news_cache)
+            if result is None:
+                break
+            saved += 1
+        except Exception as e:
+            logger.error("Crypto explainer failed: %s", e)
+            break
+    logger.info("Flow D done: %d articles generated.", saved)
+    return saved
+
+
 def main():
     parser = argparse.ArgumentParser(description="コンテンツ自動生成パイプライン")
-    parser.add_argument("flow", choices=["news", "market", "airdrop", "all"],
+    parser.add_argument("flow", choices=["news", "market", "airdrop", "crypto", "all"],
                         help="実行するフロー")
     parser.add_argument("--limit", type=int, default=5,
                         help="news/market 単独実行時の上限 (default: 5)")
-    parser.add_argument("--news-limit", type=int, default=5,
+    parser.add_argument("--news-limit", type=int, default=3,
                         help="all モード時の Flow A 上限")
-    parser.add_argument("--market-limit", type=int, default=2,
+    parser.add_argument("--market-limit", type=int, default=1,
                         help="all モード時の Flow B 上限")
-    parser.add_argument("--airdrop-limit", type=int, default=1,
+    parser.add_argument("--airdrop-limit", type=int, default=2,
                         help="all モード時の Flow C 上限")
+    parser.add_argument("--crypto-limit", type=int, default=2,
+                        help="all モード時の Flow D 上限")
     parser.add_argument("--dry-run", action="store_true",
                         help="記事を生成せず取得対象のみ表示")
     parser.add_argument("--no-news-context", action="store_true",
@@ -196,11 +235,14 @@ def main():
                         use_news_context=not args.no_news_context)
     elif args.flow == "airdrop":
         run_airdrop_flow(args.limit, args.dry_run)
+    elif args.flow == "crypto":
+        run_crypto_flow(args.limit, args.dry_run)
     else:  # all
         run_news_flow(args.news_limit, args.dry_run)
         run_market_flow(args.market_limit, args.dry_run,
                         use_news_context=not args.no_news_context)
         run_airdrop_flow(args.airdrop_limit, args.dry_run)
+        run_crypto_flow(args.crypto_limit, args.dry_run)
 
     if not args.dry_run and not args.no_sync:
         sync_articles()
