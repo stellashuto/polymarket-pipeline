@@ -276,7 +276,7 @@ def generate_article(market: Market, related_news: list | None = None,
         )
 
     # 先頭行の `# 日本語タイトル` を抽出し、本文からは除去
-    title_match = re.match(r"^\s*#\s+(.+?)\s*\n", full_text)
+    title_match = re.search(r"(?:^|\n)#\s+(.+?)\s*\n", full_text)
     if title_match:
         ja_title = title_match.group(1).strip()
         body = full_text[title_match.end():]

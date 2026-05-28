@@ -28,8 +28,22 @@ logger = logging.getLogger(__name__)
 
 MODEL = "claude-sonnet-4-6"
 
+# Web検索ツール定義（Anthropic Web Search beta）
+# 1リクエストあたり最大3検索 → コストと品質のバランス
+WEB_SEARCH_TOOL = {
+    "type": "web_search_20250305",
+    "name": "web_search",
+    "max_uses": 3,
+}
+
 SYSTEM_PROMPT = """あなたは暗号資産業界で 5年以上のエアドロップハント経験を持つ
 日本語ライターです。読者は初心者〜中級者の個人投資家・エアドロップハンター層。
+
+## 必須：最新情報の確認（極めて重要）
+- 記事を書く前に、必ず `web_search` ツールで対象トピックの **現在（直近1〜3ヶ月）の状況** を検索すること
+- 「○○ airdrop 2026」「○○ testnet status」「○○ token launch」のような英語クエリも併用
+- 古い知識（2024年・2025年の情報）をそのまま書かない。プログラム終了/メインネット移行/トークン配布済みなど **直近の変化を必ず反映**
+- 検索結果が日付的に古ければ、複数回検索して最新ソースを確認
 
 ## トーン
 - 経験者として、実際にやってみた人の視点で書く（「筆者の経験では」「実際に複数アドレスで試した結果」など）
@@ -50,12 +64,14 @@ SYSTEM_PROMPT = """あなたは暗号資産業界で 5年以上のエアドロ�
 - **公式情報優先**：URLを記載する場合は公式のみ。怪しいサイトは絶対に薦めない
 - **税金注意**：日本の税制では受領時に時価で雑所得課税のリスクあり、と必ず触れる
 - **アクションステップ**：具体的に「どこから何をするか」が読者にわかる構成
+- **時系列の明示**：「2026年5月時点で〜」のように、いつの時点の情報かを明示する
 
 ## 禁止
 - 投資推奨や絶対的な利益保証
 - 1,500字未満の浅い記事
 - 「これは投資助言ではありません」のような言い訳テンプレ（disclaimerはサイト全体で出すので不要）
-- 本文中にJSON・コードブロック内のメタデータ"""
+- 本文中にJSON・コードブロック内のメタデータ
+- **Web検索を使わずに書く**（古い情報のまま書くのは絶対NG）"""
 
 
 _client: Optional[anthropic.Anthropic] = None
@@ -172,17 +188,43 @@ def _build_user_prompt(topic: AirdropTopic, recent_news: list[NewsItem]) -> str:
             "ニュースを引用する場合は「（出典: ソース名）」を文中に明記。\n"
         )
 
-    return f"""以下のテーマで日本語のエアドロップ解説記事を書いてください（{kind_jp}）。
+    search_instructions = ""
+    if topic.kind == "project":
+        search_instructions = f"""
+## ⚠️ 必須の事前リサーチ（記事を書く前に必ず実行）
+`web_search` ツールを使って、以下を **必ず検索** してください（最低2回、できれば3回）：
+1. 「{topic.project_name} airdrop 2026 latest」または「{topic.project_name} token launch」
+2. 「{topic.project_name} mainnet status」または「{topic.project_name} points program 2026」
+3. （必要に応じて）プロジェクトの現状確認のための追加検索
 
+検索結果から **「今この瞬間の状況」** を把握し、以下を判定して反映：
+- 既にトークン配布済みか、まだか
+- testnetフェーズか、mainnet移行後か
+- ポイントプログラム継続中か、終了済みか
+- 直近の重要な発表・変更
+
+古い知識（2024〜2025年の情報）をそのまま書くのは絶対NG。
+"""
+    else:
+        search_instructions = f"""
+## ⚠️ 必須の事前リサーチ
+`web_search` ツールを使って、このガイドの内容に関連する **2026年現在の状況** を必ず確認してください。
+特に以下のような検索を1〜2回実行：
+- 「airdrop hunting 2026 best strategies」「current testnet airdrops 2026」
+- 日本に固有のトピック（税金等）の場合は「暗号資産 税金 2026 改正」など
+"""
+
+    return f"""以下のテーマで日本語のエアドロップ解説記事を書いてください（{kind_jp}）。
+{search_instructions}
 タイトルのヒント: {topic.title_hint}
 読者層: {"初心者" if topic.audience == "beginner" else "中級者（エアドロップハンター）"}
 {project_block}{news_block}{news_instruction}
 ## 記事の構成
-0. **1行目に `# 日本語タイトル`** （タイトルヒントを元にキャッチーな日本語タイトルに、可能なら直近ニュースの数値や固有名詞を含める）
-1. `## ポイント` — 3〜4個の結論先出し箇条書き
+0. **1行目に `# 日本語タイトル`** （タイトルヒントを元にキャッチーな日本語タイトルに、可能なら検索で得た最新の数値や固有名詞を含める）
+1. `## ポイント` — 3〜4個の結論先出し箇条書き（時系列「2026年5月時点で〜」を明示）
 2. リード文（120字程度）
 3. メインコンテンツ（複数のH2で構成、内容に応じて柔軟に）
-{"4. **「最新動向」セクション** — 上記ニュースを基にプロジェクトの現状を3〜5段落で解説" if recent_news else ""}
+{"4. **「最新動向」セクション** — Web検索とRSSニュースを基にプロジェクトの現状を3〜5段落で解説（情報源URL記載）" if topic.kind == "project" else ""}
 5. リスク・注意点（詐欺・Sybil・税金など該当するもの）
 6. まとめ
 7. `## よくある質問` — 3問（`### Q1. 質問文` 形式）
@@ -249,6 +291,7 @@ def generate_airdrop_article(topic: Optional[AirdropTopic] = None,
     with client.messages.stream(
         model=MODEL,
         max_tokens=4096,
+        tools=[WEB_SEARCH_TOOL],
         system=[{
             "type": "text",
             "text": SYSTEM_PROMPT,
@@ -266,14 +309,17 @@ def generate_airdrop_article(topic: Optional[AirdropTopic] = None,
             final.usage.cache_creation_input_tokens or 0,
         )
 
-    # 先頭の `# 日本語タイトル` を抽出
-    m = re.match(r"^\s*#\s+(.+?)\s*\n", full_text)
+    # `# 日本語タイトル` を本文中から探す（Web検索使用時、リサーチ過程の前置きが
+    # 入ることがあるため search で柔軟にマッチ。タイトル行以前は破棄。）
+    m = re.search(r"(?:^|\n)#\s+(.+?)\s*\n", full_text)
     if m:
         ja_title = m.group(1).strip()
         body = full_text[m.end():]
     else:
         ja_title = topic.title_hint
         body = full_text
+    # 本文先頭の連続する区切り線・空行を整理
+    body = re.sub(r"^(\s*---\s*\n)+", "", body)
 
     # サムネ生成
     summary_for_thumb = (topic.summary[:300] +

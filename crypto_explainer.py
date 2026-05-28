@@ -27,8 +27,19 @@ logger = logging.getLogger(__name__)
 
 MODEL = "claude-sonnet-4-6"
 
+WEB_SEARCH_TOOL = {
+    "type": "web_search_20250305",
+    "name": "web_search",
+    "max_uses": 3,
+}
+
 SYSTEM_PROMPT = """あなたは仮想通貨業界で 7年以上の実取引・分析経験を持つ日本語ライターです。
 読者は仮想通貨の基本〜中級レベル。「○○ とは」「○○ 仕組み」のような検索意図を持って来訪する想定。
+
+## 必須：最新情報の確認
+- 記事を書く前に `web_search` で当該銘柄の **2026年現在の状況** を必ず検索すること（時価総額・直近の主要アップグレード・規制動向）
+- 古い知識（2024年・2025年の情報）をそのまま書かない
+- 直近の主要イベント（ETF承認、ハードフォーク、規制変更）を反映する
 
 ## トーン
 - 経験者の視点。「筆者は2018年からこの銘柄を保有しているが」「実際にステーキングしてみると」のような体験的トーン
@@ -148,20 +159,27 @@ def _build_user_prompt(token: CryptoToken, news: list[NewsItem]) -> str:
 
     return f"""以下の銘柄について「○○ とは」を網羅する解説記事を日本語で書いてください。
 
+## ⚠️ 必須の事前リサーチ
+`web_search` ツールを使い、以下を必ず検索（最低2回）：
+1. 「{token.name} {token.symbol} 2026 price news latest」
+2. 「{token.symbol} ETF」「{token.symbol} upgrade」「{token.symbol} 規制」など最新動向
+古い知識のままで書かないこと。
+
 ## 銘柄情報
 - シンボル: {token.symbol}
 - 英語名: {token.name}
 - 日本語表記: {token.name_jp}
 - カテゴリ: {cat_jp}
-- 概要（参考、古い可能性あり）: {token.summary}
+- 概要（参考・古い可能性あり、必ず検索で更新せよ）: {token.summary}
 
 {_format_news_block(news)}
 
 ## タイトル指示
 タイトルは「{token.name}（{token.symbol}）とは？〜」または「{token.symbol}徹底解説」のような検索意図ど真ん中の形式に。
-直近ニュースの要素を含められれば尚良し（例: 「ETF承認」「最高値更新」など）。
+検索で得た最新の数値・出来事を含めると尚良し（例: 「ETF承認」「最高値更新」など）。
 
-人間の経験者として書いてください。AIっぽいテンプレ感を出さないこと。"""
+人間の経験者として書いてください。AIっぽいテンプレ感を出さないこと。
+記事は2026年5月時点の最新情報を反映していること。"""
 
 
 def _build_frontmatter(token: CryptoToken, title: str, title_en: str,
@@ -212,6 +230,7 @@ def generate_crypto_article(token: Optional[CryptoToken] = None,
     with client.messages.stream(
         model=MODEL,
         max_tokens=4096,
+        tools=[WEB_SEARCH_TOOL],
         system=[{
             "type": "text",
             "text": SYSTEM_PROMPT,
@@ -228,13 +247,14 @@ def generate_crypto_article(token: Optional[CryptoToken] = None,
             final.usage.cache_read_input_tokens or 0,
         )
 
-    m = re.match(r"^\s*#\s+(.+?)\s*\n", full_text)
+    m = re.search(r"(?:^|\n)#\s+(.+?)\s*\n", full_text)
     if m:
         ja_title = m.group(1).strip()
         body = full_text[m.end():]
     else:
         ja_title = f"{token.name}（{token.symbol}）とは？仕組み・特徴・買い方まとめ"
         body = full_text
+    body = re.sub(r"^(\s*---\s*\n)+", "", body)
 
     slug_for_files = f"crypto_{token.slug}"
     thumb_path = generate_thumbnail(
