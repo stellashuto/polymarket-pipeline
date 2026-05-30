@@ -12,10 +12,12 @@
 
 [CmdletBinding()]
 param(
-  [int]$NewsLimit = 3,
+  # AdSense品質改善のため総数を削減（24/日 -> 9/日）
+  # 1run あたり 4記事 × 3run = 12/日が上限、実際は重複スキップで 9前後
+  [int]$NewsLimit = 1,
   [int]$MarketLimit = 1,
-  [int]$AirdropLimit = 2,
-  [int]$CryptoLimit = 2,
+  [int]$AirdropLimit = 1,
+  [int]$CryptoLimit = 1,
   [switch]$DryRun,
   [switch]$SkipPush
 )

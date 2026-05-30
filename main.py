@@ -212,13 +212,15 @@ def main():
                         help="実行するフロー")
     parser.add_argument("--limit", type=int, default=5,
                         help="news/market 単独実行時の上限 (default: 5)")
-    parser.add_argument("--news-limit", type=int, default=3,
+    # 2026-05-30: AdSense 「有用性の低いコンテンツ」却下対応で総数削減（24/日 → 9/日）。
+    # コンテンツファーム判定リスクを下げ、1記事あたりの密度を上げる方向に変更。
+    parser.add_argument("--news-limit", type=int, default=1,
                         help="all モード時の Flow A 上限")
     parser.add_argument("--market-limit", type=int, default=1,
                         help="all モード時の Flow B 上限")
-    parser.add_argument("--airdrop-limit", type=int, default=2,
+    parser.add_argument("--airdrop-limit", type=int, default=1,
                         help="all モード時の Flow C 上限")
-    parser.add_argument("--crypto-limit", type=int, default=2,
+    parser.add_argument("--crypto-limit", type=int, default=1,
                         help="all モード時の Flow D 上限")
     parser.add_argument("--dry-run", action="store_true",
                         help="記事を生成せず取得対象のみ表示")
