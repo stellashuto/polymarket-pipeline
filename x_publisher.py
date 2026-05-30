@@ -100,13 +100,21 @@ def _monthly_count(track: dict) -> int:
 
 _FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n", re.DOTALL)
 _FIELD_RE = re.compile(r'^(\w+):\s*"?(.*?)"?\s*$', re.MULTILINE)
+_BLOCK_SCALAR_RE = re.compile(r"^(\w+):\s*\|\s*\n((?:  .*\n)+)", re.MULTILINE)
 
 
 def _parse_frontmatter(text: str) -> dict[str, str]:
     m = _FRONTMATTER_RE.match(text)
     if not m:
         return {}
-    return dict(_FIELD_RE.findall(m.group(1)))
+    fm_body = m.group(1)
+    out = dict(_FIELD_RE.findall(fm_body))
+    # YAML ブロックスカラー（複数行値）を別途取り出す
+    for key, block in _BLOCK_SCALAR_RE.findall(fm_body + "\n"):
+        # 各行先頭の2スペースを剥がす
+        value = "\n".join(line[2:] for line in block.rstrip().split("\n"))
+        out[key] = value
+    return out
 
 
 def _first_point(body: str, max_chars: int = 120) -> str:
@@ -161,7 +169,11 @@ def _hashtags(fm: dict[str, str]) -> list[str]:
 # ----------------------------------------------------------------------
 
 def build_tweet(article_path: Path) -> Optional[tuple[str, str]]:
-    """記事ファイルから (tweet_text, url) を生成。失敗時 None。"""
+    """記事ファイルから (tweet_text, url) を生成。失敗時 None。
+
+    frontmatter に `x_post` フィールドがあればそれをそのまま使う（記事生成時に
+    Claudeが最適化したテキスト）。なければテンプレートで合成する。
+    """
     try:
         raw = article_path.read_text(encoding="utf-8")
     except OSError:
@@ -175,6 +187,12 @@ def build_tweet(article_path: Path) -> Optional[tuple[str, str]]:
     title = fm.get("title", "").strip()
     if not title:
         return None
+
+    # 生成済みツイートがあればそのまま使う（URL追加だけ）
+    pre_made = fm.get("x_post", "").strip()
+    if pre_made:
+        return f"{pre_made}\n\n{url}", url
+
     category = fm.get("category", "other")
     emoji = CATEGORY_META.get(category, CATEGORY_META["other"])["emoji"]
 

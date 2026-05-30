@@ -23,6 +23,7 @@ from airdrop_topics import ALL_TOPICS, AirdropTopic
 from news_scraper import NewsScraper, NewsItem
 from thumbnail_generator import generate_thumbnail
 from translator import translate_title
+from tweet_generator import compose_tweet
 
 logger = logging.getLogger(__name__)
 
@@ -233,10 +234,15 @@ def _build_user_prompt(topic: AirdropTopic, recent_news: list[NewsItem]) -> str:
 
 
 def _build_frontmatter(topic: AirdropTopic, title: str, title_en: str,
-                       thumbnail: str) -> str:
+                       thumbnail: str, x_post: str = "") -> str:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     safe_title = title.replace('"', "'")
     safe_title_en = (title_en or "").replace('"', "'")
+    # ツイート本文はYAMLのブロックスカラー記法で保存（改行を保つ）
+    x_post_yaml = ""
+    if x_post:
+        indented = "\n".join("  " + line for line in x_post.split("\n"))
+        x_post_yaml = f"x_post: |\n{indented}\n"
     return f"""---
 title: "{safe_title}"
 title_en: "{safe_title_en}"
@@ -250,7 +256,7 @@ airdrop_kind: "{topic.kind}"
 audience: "{topic.audience}"
 thumbnail: "{thumbnail}"
 type: "airdrop"
----
+{x_post_yaml}---
 
 """
 
@@ -341,7 +347,20 @@ def generate_airdrop_article(topic: Optional[AirdropTopic] = None,
     if title_en:
         logger.info("EN title: %s", title_en[:80])
 
-    content = _build_frontmatter(topic, ja_title, title_en, thumbnail_name) + body
+    # X 投稿用ツイート文を生成
+    extra_tags = ["エアドロップ", "Airdrop"]
+    if topic.kind == "project" and topic.project_name:
+        extra_tags.append(topic.project_name.replace(" ", ""))
+    x_post = compose_tweet(
+        title=ja_title,
+        body_excerpt=body,
+        category="airdrop",
+        extra_hashtags=extra_tags,
+    )
+    if x_post:
+        logger.info("X post (%d chars):\n%s", len(x_post), x_post[:200])
+
+    content = _build_frontmatter(topic, ja_title, title_en, thumbnail_name, x_post) + body
 
     out_path = ARTICLES_DIR / f"{slug_for_files}.md"
     out_path.write_text(content, encoding="utf-8")

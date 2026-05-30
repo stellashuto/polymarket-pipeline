@@ -22,6 +22,7 @@ from crypto_tokens import TOKENS, CryptoToken
 from news_scraper import NewsScraper, NewsItem
 from thumbnail_generator import generate_thumbnail
 from translator import translate_title
+from tweet_generator import compose_tweet
 
 logger = logging.getLogger(__name__)
 
@@ -183,10 +184,14 @@ def _build_user_prompt(token: CryptoToken, news: list[NewsItem]) -> str:
 
 
 def _build_frontmatter(token: CryptoToken, title: str, title_en: str,
-                       thumbnail: str) -> str:
+                       thumbnail: str, x_post: str = "") -> str:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     safe_title = title.replace('"', "'")
     safe_title_en = (title_en or "").replace('"', "'")
+    x_post_yaml = ""
+    if x_post:
+        indented = "\n".join("  " + line for line in x_post.split("\n"))
+        x_post_yaml = f"x_post: |\n{indented}\n"
     return f"""---
 title: "{safe_title}"
 title_en: "{safe_title_en}"
@@ -199,7 +204,7 @@ crypto_symbol: "{token.symbol}"
 crypto_category: "{token.category}"
 thumbnail: "{thumbnail}"
 type: "explainer"
----
+{x_post_yaml}---
 
 """
 
@@ -272,7 +277,18 @@ def generate_crypto_article(token: Optional[CryptoToken] = None,
     if title_en:
         logger.info("EN title: %s", title_en[:80])
 
-    content = _build_frontmatter(token, ja_title, title_en, thumbnail_name) + body
+    # X 投稿用ツイート文
+    extra_tags = ["仮想通貨", token.symbol]
+    x_post = compose_tweet(
+        title=ja_title,
+        body_excerpt=body,
+        category="crypto",
+        extra_hashtags=extra_tags,
+    )
+    if x_post:
+        logger.info("X post (%d chars):\n%s", len(x_post), x_post[:200])
+
+    content = _build_frontmatter(token, ja_title, title_en, thumbnail_name, x_post) + body
 
     out_path = ARTICLES_DIR / f"{slug_for_files}.md"
     out_path.write_text(content, encoding="utf-8")
