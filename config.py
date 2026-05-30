@@ -7,6 +7,12 @@ CLOB_BASE  = "https://clob.polymarket.com"
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 REPLICATE_API_TOKEN = os.environ.get("REPLICATE_API_TOKEN", "")
 
+# X (Twitter) API credentials. すべて揃ったときだけ X 投稿フローが有効になる
+X_API_KEY            = os.environ.get("X_API_KEY", "")
+X_API_KEY_SECRET     = os.environ.get("X_API_KEY_SECRET", "")
+X_ACCESS_TOKEN       = os.environ.get("X_ACCESS_TOKEN", "")
+X_ACCESS_TOKEN_SECRET = os.environ.get("X_ACCESS_TOKEN_SECRET", "")
+
 OUTPUT_DIR     = Path(__file__).parent / "output"
 CHARTS_DIR     = OUTPUT_DIR / "charts"
 ARTICLES_DIR   = OUTPUT_DIR / "articles"

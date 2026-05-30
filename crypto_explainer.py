@@ -229,7 +229,8 @@ def generate_crypto_article(token: Optional[CryptoToken] = None,
     full_text = ""
     with client.messages.stream(
         model=MODEL,
-        max_tokens=4096,
+        # Web検索結果がoutputに含まれるため4096では本文が切れる
+        max_tokens=12000,
         tools=[WEB_SEARCH_TOOL],
         system=[{
             "type": "text",
@@ -242,10 +243,12 @@ def generate_crypto_article(token: Optional[CryptoToken] = None,
             full_text += text
         final = stream.get_final_message()
         logger.info(
-            "Usage — input: %d, output: %d, cache_read: %d",
+            "Usage — input: %d, output: %d, stop: %s",
             final.usage.input_tokens, final.usage.output_tokens,
-            final.usage.cache_read_input_tokens or 0,
+            final.stop_reason,
         )
+        if final.stop_reason == "max_tokens":
+            logger.warning("⚠ Article was truncated at max_tokens. Consider raising the limit.")
 
     m = re.search(r"(?:^|\n)#\s+(.+?)\s*\n", full_text)
     if m:

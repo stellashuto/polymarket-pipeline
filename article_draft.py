@@ -251,7 +251,7 @@ def generate_article(market: Market, related_news: list | None = None,
     full_text = ""
     with client.messages.stream(
         model=MODEL,
-        max_tokens=4096,
+        max_tokens=6000,
         system=[
             {
                 "type": "text",
