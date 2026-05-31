@@ -1,19 +1,19 @@
-# publish.ps1 - End-to-end publisher
+﻿# publish.ps1 - End-to-end publisher
 #
-#   1. Generate articles (Flow A + Flow B)
+#   1. Generate articles (Flow A + Flow B + C + D)
 #   2. Sync to polymarket-site/content/articles/
 #   3. git commit and push -> Vercel auto-deploys
 #
 # Examples:
-#   .\publish.ps1                                  # default: 5 news, 2 markets
-#   .\publish.ps1 -NewsLimit 10 -MarketLimit 3     # custom counts
+#   .\publish.ps1                                  # default: 1 each = 4 articles
+#   .\publish.ps1 -NewsLimit 2 -CryptoLimit 0      # custom counts
 #   .\publish.ps1 -DryRun                          # preview only
 #   .\publish.ps1 -SkipPush                        # local only, no git push
+#
+# Defaults reduced 2026-05-30 for AdSense quality (was 3/1/2/2 = 8/run).
 
 [CmdletBinding()]
 param(
-  # AdSense品質改善のため総数を削減（24/日 -> 9/日）
-  # 1run あたり 4記事 × 3run = 12/日が上限、実際は重複スキップで 9前後
   [int]$NewsLimit = 1,
   [int]$MarketLimit = 1,
   [int]$AirdropLimit = 1,
